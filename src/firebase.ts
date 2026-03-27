@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseAppletConfig from '../firebase-applet-config.json';
 
@@ -17,40 +17,42 @@ const firebaseConfig = {
 
 const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseAppletConfig.firestoreDatabaseId;
 
-console.log("Initializing Firebase with Project ID:", firebaseConfig.projectId);
-console.log("Using Firestore Database ID:", databaseId || '(default)');
+console.log("Firebase Config:", { ...firebaseConfig, apiKey: '***' });
+console.log("Using Database ID:", databaseId || '(default)');
 
 const app = initializeApp(firebaseConfig);
-// If databaseId is '(default)' or empty, use the default database
-export const db = (databaseId && databaseId !== '(default)') 
-  ? getFirestore(app, databaseId) 
-  : getFirestore(app);
+export const db = getFirestore(app, databaseId || '(default)');
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 
+// Enable persistence
+enableIndexedDbPersistence(db).catch((err) => {
+  if (err.code === 'failed-precondition') {
+    // Multiple tabs open, persistence can only be enabled in one tab at a time.
+    console.warn('Firestore persistence failed: multiple tabs open');
+  } else if (err.code === 'unimplemented') {
+    // The current browser does not support all of the features required to enable persistence
+    console.warn('Firestore persistence failed: browser not supported');
+  }
+});
+
 // Test connection to Firestore
 import { getDocFromServer, doc } from 'firebase/firestore';
-async function testConnection(retries = 5) {
-  const currentAttempt = 6 - retries;
-  console.log(`Starting Firestore connection test (attempt ${currentAttempt})...`);
+async function testConnection(retries = 3) {
+  console.log(`Starting Firestore connection test (attempt ${4 - retries})...`);
   try {
     // Try to get a non-existent document from the server to test connectivity
     const testDoc = doc(db, '_connection_test_', 'test');
+    console.log("Attempting to get doc from path:", testDoc.path, "in database:", databaseId || '(default)');
     await getDocFromServer(testDoc);
     console.log("Firestore connection successful to database:", databaseId || '(default)');
   } catch (error: any) {
-    console.error(`Firestore connection test failed (attempt ${currentAttempt}) with error:`, error.code, error.message);
-    
-    if (retries > 0) {
-      const delay = 5000;
-      console.log(`Retrying in ${delay/1000} seconds...`);
-      setTimeout(() => testConnection(retries - 1), delay);
-    } else {
-      console.error("CRITICAL: Firestore is offline after multiple retries. Possible causes:");
-      console.error("1. The databaseId is incorrect (current:", databaseId || '(default)', ")");
-      console.error("2. The database is not provisioned in the project:", firebaseConfig.projectId);
-      console.error("3. Network/Proxy issues in the environment.");
-      console.error("If this is a remixed app, please run the Firebase Setup again.");
+    console.error("Firestore connection test failed with error:", error.code, error.message);
+    if (retries > 0 && (error.message.includes('the client is offline') || error.code === 'unavailable')) {
+      console.log("Retrying in 5 seconds...");
+      setTimeout(() => testConnection(retries - 1), 5000);
+    } else if (error.message.includes('the client is offline') || error.code === 'unavailable') {
+      console.error("CRITICAL: Firestore is offline after multiple retries. This usually means the databaseId is incorrect or the database is not provisioned. If this is a remixed app, please run the Firebase Setup again.");
     }
   }
 }

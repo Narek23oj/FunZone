@@ -146,6 +146,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 hasPassword: true
               });
               // The snapshot listener will trigger and set the user
+            } else {
+              // User document deleted, log out
+              setCurrentUser(null);
             }
           }
         }, (error) => {

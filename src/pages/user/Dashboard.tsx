@@ -52,7 +52,7 @@ export default function UserDashboard() {
   };
 
   const processApplication = async (eventId: string) => {
-    if (processingEventId) return;
+    if (processingEventId || !user) return;
     setProcessingEventId(eventId);
     try {
       const event = events.find(e => e.id === eventId);
@@ -60,7 +60,7 @@ export default function UserDashboard() {
 
       const price = event.price || 0;
       
-      await applyForEvent(eventId, user!.id, price);
+      await applyForEvent(eventId, user.id, price);
       
       if (price > 0) {
         toast.success(`Գրանցումը հաջողությամբ կատարվեց: ${price} FZ Coin գանձվեց:`);
@@ -68,7 +68,14 @@ export default function UserDashboard() {
         toast.success('Գրանցումը հաջողությամբ կատարվեց:');
       }
     } catch (error: any) {
-      toast.error(error.message);
+      let message = error.message;
+      try {
+        const parsed = JSON.parse(error.message);
+        if (parsed.error) message = parsed.error;
+      } catch (e) {
+        // Not a JSON error
+      }
+      toast.error(message);
     } finally {
       setProcessingEventId(null);
       setPaymentModalOpen(false);

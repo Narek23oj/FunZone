@@ -191,25 +191,39 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
   const applyForEvent = async (eventId: string, userId: string, price: number = 0) => {
     try {
       await runTransaction(db, async (transaction) => {
-        // Check if application already exists using deterministic ID
+        const userRef = doc(db, 'users', userId);
+        const eventRef = doc(db, 'events', eventId);
         const appRef = doc(db, 'applications', `${userId}_${eventId}`);
-        const appDoc = await transaction.get(appRef);
-        
+
+        const [userDoc, eventDoc, appDoc] = await Promise.all([
+          transaction.get(userRef),
+          transaction.get(eventRef),
+          transaction.get(appRef)
+        ]);
+
+        if (!userDoc.exists()) {
+          throw new Error('Օգտատերը չի գտնվել');
+        }
+
+        if (!eventDoc.exists()) {
+          throw new Error('Միջոցառումը չի գտնվել');
+        }
+
         if (appDoc.exists()) {
           throw new Error('Այս միջոցառման համար արդեն դիմել եք:');
         }
 
-        const userRef = doc(db, 'users', userId);
-        const userDoc = await transaction.get(userRef);
-        
-        if (!userDoc.exists()) throw new Error('Օգտատերը չի գտնվել');
-        
         const userData = userDoc.data();
+        const eventData = eventDoc.data();
         const currentCoins = userData.fzCoins || 0;
-        
-        if (price > 0 && currentCoins < price) {
-          throw new Error('Անբավարար FZ Coins');
-        }
+
+        // Calculate payment
+        // We allow registration even if coins are insufficient, as per "pay on spot" logic in UI
+        const amountToDeduct = Math.min(currentCoins, price);
+        const remainingPayment = Math.max(0, price - amountToDeduct);
+
+        // Update user coins
+        transaction.update(userRef, { fzCoins: currentCoins - amountToDeduct });
 
         // Create application
         const newApp = {
@@ -217,30 +231,26 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
           userId,
           status: 'pending',
           appliedAt: new Date().toISOString(),
-          paymentRequired: 0,
-          paidAmount: price
+          paymentRequired: remainingPayment,
+          paidAmount: amountToDeduct
         };
         transaction.set(appRef, newApp);
 
-        // Deduct coins if price > 0
-        if (price > 0) {
-          transaction.update(userRef, { fzCoins: currentCoins - price });
-          
-          // Add transaction record
+        // Add transaction record if any coins were deducted
+        if (amountToDeduct > 0) {
           const transRef = doc(collection(db, 'transactions'));
-          const event = events.find(e => e.id === eventId);
           transaction.set(transRef, {
             userId,
-            amount: -price,
+            amount: -amountToDeduct,
             type: 'spend',
-            reason: `Վճարում սեմինարի համար՝ ${event?.title || 'Միջոցառում'}`,
+            reason: `Վճարում միջոցառման համար՝ ${eventData.title}`,
             date: new Date().toISOString()
           });
         }
       });
     } catch (error: any) {
       if (error.message === 'Այս միջոցառման համար արդեն դիմել եք:' || 
-          error.message === 'Անբավարար FZ Coins' || 
+          error.message === 'Միջոցառումը չի գտնվել' || 
           error.message === 'Օգտատերը չի գտնվել') {
         throw error;
       }

@@ -193,15 +193,23 @@ service cloud.firestore {
              isValidOptionalString('telegramLink', 0, 1000) &&
              isValidOptionalBoolean('attended') &&
              isValidOptionalNumber('paymentRequired') &&
-             isValidOptionalNumber('paidAmount');
+             isValidOptionalNumber('paidAmount') &&
+             hasOnlyAllowedFields(['eventId', 'userId', 'status', 'appliedAt', 'telegramLink', 'attended', 'paymentRequired', 'paidAmount']);
     }
 
     function isRegistrationOpen(eventId) {
-      let event = get(/databases/$(database)/documents/events/$(eventId)).data;
-      let deadline = (event != null && 'registrationDeadline' in event) ? event.registrationDeadline : (event != null ? event.date : null);
-      // Handle both YYYY-MM-DD and ISO strings
-      let deadlineTs = (deadline != null && deadline.size() <= 10) ? timestamp(deadline + "T23:59:59Z") : (deadline != null ? timestamp(deadline) : null);
-      return deadlineTs != null && request.time < deadlineTs;
+      let eventPath = /databases/$(database)/documents/events/$(eventId);
+      let eventExists = exists(eventPath);
+      let event = eventExists ? get(eventPath).data : null;
+      let deadline = (event != null && 'registrationDeadline' in event && event.registrationDeadline != null && event.registrationDeadline != "") 
+        ? event.registrationDeadline 
+        : (event != null && 'date' in event ? event.date : null);
+      
+      let deadlineTs = (deadline != null && deadline is string && deadline.size() <= 10) 
+        ? timestamp(deadline + "T23:59:59Z") 
+        : (deadline != null ? timestamp(deadline) : null);
+      
+      return eventExists && (deadlineTs == null || request.time < deadlineTs);
     }
 
     function isValidCertificate() {
@@ -212,20 +220,23 @@ service cloud.firestore {
              isValidString('issuedAt', 1, 100) &&
              isValidOptionalBoolean('isMandatory') &&
              isValidOptionalString('type', 0, 100) &&
-             isValidOptionalString('templateData', 0, 800000);
+             isValidOptionalString('templateData', 0, 800000) &&
+             hasOnlyAllowedFields(['userId', 'recipientName', 'title', 'issuedAt', 'isMandatory', 'type', 'templateData', 'eventId', 'pdfUrl']);
     }
 
     function isValidAnnouncement() {
       return hasRequiredFields(['title', 'content', 'date']) &&
              isValidString('title', 1, 200) &&
              isValidString('content', 1, 20000) &&
-             isValidString('date', 1, 100);
+             isValidString('date', 1, 100) &&
+             hasOnlyAllowedFields(['title', 'content', 'date']);
     }
 
     function isValidAsset() {
       return hasRequiredFields(['name', 'url']) &&
              isValidString('name', 1, 200) &&
-             isValidString('url', 1, 800000);
+             isValidString('url', 1, 800000) &&
+             hasOnlyAllowedFields(['name', 'url']);
     }
 
     function isValidLeave() {
@@ -237,7 +248,8 @@ service cloud.firestore {
              request.resource.data.status in ['pending', 'approved', 'rejected'] &&
              isValidString('appliedAt', 1, 50) &&
              isValidString('type', 1, 100) &&
-             isValidOptionalString('approvedBy', 0, 50);
+             isValidOptionalString('approvedBy', 0, 50) &&
+             hasOnlyAllowedFields(['userId', 'startDate', 'endDate', 'reason', 'status', 'appliedAt', 'type', 'approvedBy']);
     }
 
     function isValidTransaction() {
@@ -247,7 +259,8 @@ service cloud.firestore {
              request.resource.data.type in ['add', 'subtract', 'award', 'spend'] &&
              isValidString('reason', 1, 1000) &&
              isValidString('date', 1, 50) &&
-             isValidOptionalString('adminId', 0, 50);
+             isValidOptionalString('adminId', 0, 50) &&
+             hasOnlyAllowedFields(['userId', 'amount', 'type', 'reason', 'date', 'adminId']);
     }
 
     function isValidCertificateTemplate() {
@@ -255,7 +268,12 @@ service cloud.firestore {
              isValidString('name', 1, 200) &&
              isValidString('url', 1, 800000) &&
              request.resource.data.type in ['Seminar', 'Volunteering', 'Event'] &&
-             isValidString('createdAt', 1, 100);
+             isValidString('createdAt', 1, 100) &&
+             hasOnlyAllowedFields(['name', 'url', 'type', 'createdAt']);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
     }
 
     // ===============================================================
