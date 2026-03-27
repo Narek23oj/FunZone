@@ -76,8 +76,8 @@ export default function UserDashboard() {
     }
   };
 
-  const userApplications = applications.filter(a => a.userId === user?.id);
-  const userCertificates = certificates.filter(c => c.userId === user?.id);
+  const userApplications = applications;
+  const userCertificates = certificates;
   const allUsers = users;
   
   const displayedUsers = allUsers.filter(u => {

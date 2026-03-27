@@ -113,6 +113,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     if (!isAuthReady || !user) return;
 
     const isAdmin = user.role === 'admin' || user.role === 'superadmin';
+    const userId = user.id;
 
     const unsubEvents = onSnapshot(query(collection(db, 'events')), (snapshot) => {
       setEvents(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Event)));
@@ -121,7 +122,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubApps = onSnapshot(
       isAdmin 
         ? query(collection(db, 'applications')) 
-        : query(collection(db, 'applications'), where('userId', '==', user.id)),
+        : query(collection(db, 'applications'), where('userId', '==', userId)),
       (snapshot) => {
         setApplications(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Application)));
       }, (error) => handleFirestoreError(error, OperationType.LIST, 'applications'));
@@ -129,7 +130,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubCerts = onSnapshot(
       isAdmin
         ? query(collection(db, 'certificates'))
-        : query(collection(db, 'certificates'), where('userId', '==', user.id)),
+        : query(collection(db, 'certificates'), where('userId', '==', userId)),
       (snapshot) => {
         setCertificates(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Certificate)));
       }, (error) => handleFirestoreError(error, OperationType.LIST, 'certificates'));
@@ -149,7 +150,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubTransactions = onSnapshot(
       isAdmin
         ? query(collection(db, 'transactions'))
-        : query(collection(db, 'transactions'), where('userId', '==', user.id)),
+        : query(collection(db, 'transactions'), where('userId', '==', userId)),
       (snapshot) => {
         setTransactions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
       }, (error) => handleFirestoreError(error, OperationType.LIST, 'transactions'));
@@ -163,7 +164,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
       unsubTemplates();
       unsubTransactions();
     };
-  }, [isAuthReady, user]);
+  }, [isAuthReady, user?.id, user?.role]);
 
   const addEvent = async (eventData: Omit<Event, 'id'>) => {
     try {
