@@ -281,37 +281,33 @@ export default function AdminDashboard() {
     const event = events.find(e => e.id === certData.eventId);
     const isVolunteering = event?.type === 'Volunteering';
     
-    for (const app of eventParticipants) {
-      try {
-        // Issue certificate
-        await issueCertificate({
-          userId: app.userId,
-          title: certData.title,
-          isMandatory: certData.isMandatory,
-          type: certData.type,
-          templateData: certData.templateData || undefined,
-          eventId: certData.eventId
-        });
+    eventParticipants.forEach(async (app) => {
+      // Issue certificate
+      await issueCertificate({
+        userId: app.userId,
+        title: certData.title,
+        isMandatory: certData.isMandatory,
+        type: certData.type,
+        templateData: certData.templateData || undefined,
+        eventId: certData.eventId
+      });
 
-        // Award 1000 FZ coins if it's a volunteering event
-        if (isVolunteering) {
-          const appUser = users.find(u => u.id === app.userId);
-          if (appUser) {
-            const newBalance = (appUser.fzCoins || 0) + 1000;
-            await updateAuthUser(appUser.id, { fzCoins: newBalance });
-            await addTransaction({
-              userId: appUser.id,
-              amount: 1000,
-              type: 'award',
-              reason: `Մասնակցություն կամավորությանը՝ ${event.title}`,
-              adminId: user?.id
-            });
-          }
+      // Award 1000 FZ coins if it's a volunteering event
+      if (isVolunteering) {
+        const appUser = users.find(u => u.id === app.userId);
+        if (appUser) {
+          const newBalance = (appUser.fzCoins || 0) + 1000;
+          await updateAuthUser(appUser.id, { fzCoins: newBalance });
+          await addTransaction({
+            userId: appUser.id,
+            amount: 1000,
+            type: 'award',
+            reason: `Մասնակցություն կամավորությանը՝ ${event.title}`,
+            adminId: user?.id
+          });
         }
-      } catch (err) {
-        console.error(`Failed to issue certificate for ${app.userId}:`, err);
       }
-    }
+    });
     
     toast.success(`Սերտիֆիկատը հաջողությամբ տրամադրվեց ${eventParticipants.length} մասնակցի:${isVolunteering ? ' 1000 FZ Coins նույնպես փոխանցվեց:' : ''}`);
     setCertData({ eventId: '', title: '', isMandatory: false, type: 'Event', templateData: null });
@@ -446,24 +442,16 @@ export default function AdminDashboard() {
     for (const app of eventApps) {
       const appUser = users.find(u => u.id === app.userId);
       if (appUser) {
-        try {
-          // Award coins
-          await updateAuthUser(appUser.id, { fzCoins: (appUser.fzCoins || 0) + 1000 });
-          
-          await addTransaction({
-            userId: appUser.id,
-            amount: 1000,
-            type: 'award',
-            reason: `Կամավորություն՝ ${event.title}`,
-            adminId: user?.id
-          });
-
-          // Issue certificate if template exists
-          if (template) {
+        // Award coins
+        await updateAuthUser(appUser.id, { fzCoins: (appUser.fzCoins || 0) + 1000 });
+        
+        // Issue certificate if template exists
+        if (template) {
+          try {
             await generateCertificate(appUser, event, template);
+          } catch (err) {
+            console.error(`Failed to generate certificate for ${appUser.name}:`, err);
           }
-        } catch (err) {
-          console.error(`Failed to process volunteer ${appUser.name}:`, err);
         }
       }
     }
@@ -1275,15 +1263,11 @@ export default function AdminDashboard() {
                               }`}>
                                 {app.status === 'pending' ? 'Սպասվող' : app.status === 'approved' ? 'Հաստատված' : 'Մերժված'}
                               </span>
-                              {app.paidAmount && app.paidAmount > 0 ? (
-                                <span className="text-[10px] text-green-400 font-bold uppercase tracking-widest">
-                                  Վճարված է: {app.paidAmount} 🪙
+                              {app.paymentRequired && app.paymentRequired > 0 && (
+                                <span className="text-[10px] text-orange-400 font-bold uppercase tracking-widest">
+                                  Վճարելու է իրական գումար
                                 </span>
-                              ) : app.paymentRequired && app.paymentRequired > 0 ? (
-                                <span className="text-[10px] text-orange-400 font-bold uppercase tracking-widest bg-orange-400/5 px-2 py-1 rounded-lg border border-orange-400/10">
-                                  Տեղում վճարում: {app.paymentRequired} ֏
-                                </span>
-                              ) : null}
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-3 text-right">
@@ -1385,15 +1369,11 @@ export default function AdminDashboard() {
 
                       <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
                         <div className="font-bold text-sm mb-1">{appEvent.title}</div>
-                        {app.paidAmount && app.paidAmount > 0 ? (
-                          <div className="text-[10px] text-green-400 font-bold uppercase tracking-widest">
-                            Վճարված է: {app.paidAmount} 🪙
+                        {app.paymentRequired && app.paymentRequired > 0 && (
+                          <div className="text-[10px] text-orange-400 font-bold uppercase tracking-widest">
+                            Վճարելու է իրական գումար
                           </div>
-                        ) : app.paymentRequired && app.paymentRequired > 0 ? (
-                          <div className="text-[10px] text-orange-400 font-bold uppercase tracking-widest bg-orange-400/5 px-2 py-1 rounded-lg border border-orange-400/10 inline-block">
-                            Տեղում վճարում: {app.paymentRequired} ֏
-                          </div>
-                        ) : null}
+                        )}
                       </div>
 
                       <div className="flex justify-end gap-2 pt-2">

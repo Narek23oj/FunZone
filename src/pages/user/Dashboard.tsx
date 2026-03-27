@@ -32,10 +32,8 @@ export default function UserDashboard() {
   const [pendingPayment, setPendingPayment] = useState<number>(0);
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [processingEventId, setProcessingEventId] = useState<string | null>(null);
 
   const handleApplyClick = (eventId: string) => {
-    if (processingEventId) return;
     const event = events.find(e => e.id === eventId);
     if (!event) return;
 
@@ -51,40 +49,36 @@ export default function UserDashboard() {
     }
   };
 
-  const processApplication = async (eventId: string) => {
-    if (processingEventId || !user) return;
-    setProcessingEventId(eventId);
+  const processApplication = (eventId: string) => {
     try {
       const event = events.find(e => e.id === eventId);
       if (!event) throw new Error('Միջոցառումը չի գտնվել');
 
       const price = event.price || 0;
-      
-      await applyForEvent(eventId, user.id, price);
-      
+      const userCoins = user?.fzCoins || 0;
+
       if (price > 0) {
-        toast.success(`Գրանցումը հաջողությամբ կատարվեց: ${price} FZ Coin գանձվեց:`);
+        if (userCoins >= price) {
+          updateUser(user!.id, { fzCoins: userCoins - price });
+          applyForEvent(eventId, user!.id, 0);
+          toast.success(`Գրանցումը հաջողությամբ կատարվեց: ${price} FZ Coin գանձվեց:`);
+        } else {
+          applyForEvent(eventId, user!.id, price);
+          toast.success(`Գրանցումը հաջողությամբ կատարվեց:`);
+        }
       } else {
+        applyForEvent(eventId, user!.id);
         toast.success('Գրանցումը հաջողությամբ կատարվեց:');
       }
     } catch (error: any) {
-      let message = error.message;
-      try {
-        const parsed = JSON.parse(error.message);
-        if (parsed.error) message = parsed.error;
-      } catch (e) {
-        // Not a JSON error
-      }
-      toast.error(message);
-    } finally {
-      setProcessingEventId(null);
-      setPaymentModalOpen(false);
-      setPendingEventId(null);
+      toast.error(error.message);
     }
+    setPaymentModalOpen(false);
+    setPendingEventId(null);
   };
 
-  const userApplications = applications;
-  const userCertificates = certificates;
+  const userApplications = applications.filter(a => a.userId === user?.id);
+  const userCertificates = certificates.filter(c => c.userId === user?.id);
   const allUsers = users;
   
   const displayedUsers = allUsers.filter(u => {
@@ -330,17 +324,15 @@ export default function UserDashboard() {
                       <p className="text-sm text-secondary mb-6 flex-1 line-clamp-3">{event.description}</p>
                       
                       <button
-                        onClick={() => canRegister && !processingEventId && handleApplyClick(event.id)}
-                        disabled={!canRegister || !!processingEventId}
+                        onClick={() => canRegister && handleApplyClick(event.id)}
+                        disabled={!canRegister}
                         className={`w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-                          !canRegister || !!processingEventId
+                          !canRegister 
                             ? 'bg-white/5 text-secondary cursor-not-allowed border border-border' 
                             : 'minimal-button-primary'
                         }`}
                       >
-                        {processingEventId === event.id ? (
-                          'Մշակվում է...'
-                        ) : hasApplied ? (
+                        {hasApplied ? (
                           <><CheckCircle size={18} /> Գրանցված է</>
                         ) : isPastDeadline ? (
                           <><XCircle size={18} /> Գրանցումը փակ է</>

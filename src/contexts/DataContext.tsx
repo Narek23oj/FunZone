@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, doc, setDoc, deleteDoc, updateDoc, onSnapshot, query, getDoc, where, runTransaction } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, updateDoc, onSnapshot, query, getDoc, where } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firebase-errors';
 import { useAuth } from './AuthContext';
 
@@ -26,7 +26,6 @@ export interface Application {
   telegramLink?: string;
   attended?: boolean;
   paymentRequired?: number;
-  paidAmount?: number;
 }
 
 export interface Certificate {
@@ -113,7 +112,6 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     if (!isAuthReady || !user) return;
 
     const isAdmin = user.role === 'admin' || user.role === 'superadmin';
-    const userId = user.id;
 
     const unsubEvents = onSnapshot(query(collection(db, 'events')), (snapshot) => {
       setEvents(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Event)));
@@ -122,7 +120,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubApps = onSnapshot(
       isAdmin 
         ? query(collection(db, 'applications')) 
-        : query(collection(db, 'applications'), where('userId', '==', userId)),
+        : query(collection(db, 'applications'), where('userId', '==', user.id)),
       (snapshot) => {
         setApplications(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Application)));
       }, (error) => handleFirestoreError(error, OperationType.LIST, 'applications'));
@@ -130,7 +128,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubCerts = onSnapshot(
       isAdmin
         ? query(collection(db, 'certificates'))
-        : query(collection(db, 'certificates'), where('userId', '==', userId)),
+        : query(collection(db, 'certificates'), where('userId', '==', user.id)),
       (snapshot) => {
         setCertificates(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Certificate)));
       }, (error) => handleFirestoreError(error, OperationType.LIST, 'certificates'));
@@ -150,7 +148,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubTransactions = onSnapshot(
       isAdmin
         ? query(collection(db, 'transactions'))
-        : query(collection(db, 'transactions'), where('userId', '==', userId)),
+        : query(collection(db, 'transactions'), where('userId', '==', user.id)),
       (snapshot) => {
         setTransactions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)));
       }, (error) => handleFirestoreError(error, OperationType.LIST, 'transactions'));
@@ -164,7 +162,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
       unsubTemplates();
       unsubTransactions();
     };
-  }, [isAuthReady, user?.id, user?.role]);
+  }, [isAuthReady, user]);
 
   const addEvent = async (eventData: Omit<Event, 'id'>) => {
     try {
@@ -188,72 +186,23 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const applyForEvent = async (eventId: string, userId: string, price: number = 0) => {
+  const applyForEvent = async (eventId: string, userId: string, paymentRequired?: number) => {
+    const exists = applications.find(a => a.eventId === eventId && a.userId === userId);
+    if (exists) throw new Error('Այս միջոցառման համար արդեն դիմել եք:');
+
     try {
-      await runTransaction(db, async (transaction) => {
-        const userRef = doc(db, 'users', userId);
-        const eventRef = doc(db, 'events', eventId);
-        const appRef = doc(db, 'applications', `${userId}_${eventId}`);
-
-        const [userDoc, eventDoc, appDoc] = await Promise.all([
-          transaction.get(userRef),
-          transaction.get(eventRef),
-          transaction.get(appRef)
-        ]);
-
-        if (!userDoc.exists()) {
-          throw new Error('Օգտատերը չի գտնվել');
-        }
-
-        if (!eventDoc.exists()) {
-          throw new Error('Միջոցառումը չի գտնվել');
-        }
-
-        if (appDoc.exists()) {
-          throw new Error('Այս միջոցառման համար արդեն դիմել եք:');
-        }
-
-        const userData = userDoc.data();
-        const eventData = eventDoc.data();
-        const currentCoins = userData.fzCoins || 0;
-
-        // Calculate payment
-        // We allow registration even if coins are insufficient, as per "pay on spot" logic in UI
-        const amountToDeduct = Math.min(currentCoins, price);
-        const remainingPayment = Math.max(0, price - amountToDeduct);
-
-        // Update user coins
-        transaction.update(userRef, { fzCoins: currentCoins - amountToDeduct });
-
-        // Create application
-        const newApp = {
-          eventId,
-          userId,
-          status: 'pending',
-          appliedAt: new Date().toISOString(),
-          paymentRequired: remainingPayment,
-          paidAmount: amountToDeduct
-        };
-        transaction.set(appRef, newApp);
-
-        // Add transaction record if any coins were deducted
-        if (amountToDeduct > 0) {
-          const transRef = doc(collection(db, 'transactions'));
-          transaction.set(transRef, {
-            userId,
-            amount: -amountToDeduct,
-            type: 'spend',
-            reason: `Վճարում միջոցառման համար՝ ${eventData.title}`,
-            date: new Date().toISOString()
-          });
-        }
-      });
-    } catch (error: any) {
-      if (error.message === 'Այս միջոցառման համար արդեն դիմել եք:' || 
-          error.message === 'Միջոցառումը չի գտնվել' || 
-          error.message === 'Օգտատերը չի գտնվել') {
-        throw error;
+      const newRef = doc(collection(db, 'applications'));
+      const newApp: Omit<Application, 'id'> = {
+        eventId,
+        userId,
+        status: 'pending',
+        appliedAt: new Date().toISOString(),
+      };
+      if (paymentRequired !== undefined) {
+        newApp.paymentRequired = paymentRequired;
       }
+      await setDoc(newRef, newApp);
+    } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'applications');
     }
   };

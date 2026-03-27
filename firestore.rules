@@ -157,18 +157,17 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidUser() {
-      return hasRequiredFields(['username', 'name', 'role']) &&
-             isValidString('username', 1, 200) &&
-             isValidString('name', 1, 500) &&
+      return hasRequiredFields(['username', 'name', 'role', 'hasPassword']) &&
+             isValidString('username', 1, 100) &&
+             isValidString('name', 1, 200) &&
              request.resource.data.role in ['superadmin', 'admin', 'user'] &&
-             isValidOptionalBoolean('hasPassword') &&
-             isValidOptionalString('email', 0, 500) &&
-             isValidOptionalString('phone', 0, 100) &&
-             isValidOptionalString('department', 0, 200) &&
-             isValidOptionalString('password', 0, 500) &&
-             isValidOptionalString('image', 0, 2000000) &&
-             isValidOptionalNumber('fzCoins') &&
-             isValidOptionalString('createdAt', 0, 100);
+             request.resource.data.hasPassword is bool &&
+             isValidOptionalString('email', 0, 200) &&
+             isValidOptionalString('phone', 0, 50) &&
+             isValidOptionalString('department', 0, 100) &&
+             isValidOptionalString('password', 0, 200) &&
+             isValidOptionalString('image', 0, 800000) &&
+             isValidOptionalNumber('fzCoins');
     }
 
     function isValidEvent() {
@@ -186,30 +185,20 @@ service cloud.firestore {
 
     function isValidApplication() {
       return hasRequiredFields(['eventId', 'userId', 'status', 'appliedAt']) &&
-             isValidString('eventId', 1, 100) &&
-             isValidString('userId', 1, 100) &&
+             isValidString('eventId', 1, 50) &&
+             isValidString('userId', 1, 50) &&
              request.resource.data.status in ['pending', 'approved', 'rejected'] &&
-             isValidString('appliedAt', 1, 100) &&
-             isValidOptionalString('telegramLink', 0, 1000) &&
+             isValidString('appliedAt', 1, 50) &&
+             isValidOptionalString('telegramLink', 0, 500) &&
              isValidOptionalBoolean('attended') &&
-             isValidOptionalNumber('paymentRequired') &&
-             isValidOptionalNumber('paidAmount') &&
-             hasOnlyAllowedFields(['eventId', 'userId', 'status', 'appliedAt', 'telegramLink', 'attended', 'paymentRequired', 'paidAmount']);
+             isValidOptionalNumber('paymentRequired');
     }
 
     function isRegistrationOpen(eventId) {
-      let eventPath = /databases/$(database)/documents/events/$(eventId);
-      let eventExists = exists(eventPath);
-      let event = eventExists ? get(eventPath).data : null;
-      let deadline = (event != null && 'registrationDeadline' in event && event.registrationDeadline != null && event.registrationDeadline != "") 
-        ? event.registrationDeadline 
-        : (event != null && 'date' in event ? event.date : null);
-      
-      let deadlineTs = (deadline != null && deadline is string && deadline.size() <= 10) 
-        ? timestamp(deadline + "T23:59:59Z") 
-        : (deadline != null ? timestamp(deadline) : null);
-      
-      return eventExists && (deadlineTs == null || request.time < deadlineTs);
+      let event = get(/databases/$(database)/documents/events/$(eventId)).data;
+      let deadline = ('registrationDeadline' in event) ? event.registrationDeadline : event.date;
+      // Handle YYYY-MM-DD by appending T00:00:00Z to close registration at the start of the deadline day
+      return request.time < timestamp(deadline + "T00:00:00Z");
     }
 
     function isValidCertificate() {
@@ -220,23 +209,20 @@ service cloud.firestore {
              isValidString('issuedAt', 1, 100) &&
              isValidOptionalBoolean('isMandatory') &&
              isValidOptionalString('type', 0, 100) &&
-             isValidOptionalString('templateData', 0, 800000) &&
-             hasOnlyAllowedFields(['userId', 'recipientName', 'title', 'issuedAt', 'isMandatory', 'type', 'templateData', 'eventId', 'pdfUrl']);
+             isValidOptionalString('templateData', 0, 800000);
     }
 
     function isValidAnnouncement() {
       return hasRequiredFields(['title', 'content', 'date']) &&
              isValidString('title', 1, 200) &&
              isValidString('content', 1, 20000) &&
-             isValidString('date', 1, 100) &&
-             hasOnlyAllowedFields(['title', 'content', 'date']);
+             isValidString('date', 1, 100);
     }
 
     function isValidAsset() {
       return hasRequiredFields(['name', 'url']) &&
              isValidString('name', 1, 200) &&
-             isValidString('url', 1, 800000) &&
-             hasOnlyAllowedFields(['name', 'url']);
+             isValidString('url', 1, 800000);
     }
 
     function isValidLeave() {
@@ -248,8 +234,7 @@ service cloud.firestore {
              request.resource.data.status in ['pending', 'approved', 'rejected'] &&
              isValidString('appliedAt', 1, 50) &&
              isValidString('type', 1, 100) &&
-             isValidOptionalString('approvedBy', 0, 50) &&
-             hasOnlyAllowedFields(['userId', 'startDate', 'endDate', 'reason', 'status', 'appliedAt', 'type', 'approvedBy']);
+             isValidOptionalString('approvedBy', 0, 50);
     }
 
     function isValidTransaction() {
@@ -259,8 +244,7 @@ service cloud.firestore {
              request.resource.data.type in ['add', 'subtract', 'award', 'spend'] &&
              isValidString('reason', 1, 1000) &&
              isValidString('date', 1, 50) &&
-             isValidOptionalString('adminId', 0, 50) &&
-             hasOnlyAllowedFields(['userId', 'amount', 'type', 'reason', 'date', 'adminId']);
+             isValidOptionalString('adminId', 0, 50);
     }
 
     function isValidCertificateTemplate() {
@@ -268,12 +252,7 @@ service cloud.firestore {
              isValidString('name', 1, 200) &&
              isValidString('url', 1, 800000) &&
              request.resource.data.type in ['Seminar', 'Volunteering', 'Event'] &&
-             isValidString('createdAt', 1, 100) &&
-             hasOnlyAllowedFields(['name', 'url', 'type', 'createdAt']);
-    }
-
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
+             isValidString('createdAt', 1, 100);
     }
 
     // ===============================================================
@@ -429,11 +408,8 @@ service cloud.firestore {
         resource.data.userId == request.auth.uid
       );
       
-      // Admins can create any transaction, users can create 'spend' transactions for themselves
-      allow create: if isAuthenticated() && isValidTransaction() && (
-        isAdmin() || 
-        (request.resource.data.userId == request.auth.uid && request.resource.data.type == 'spend')
-      );
+      // Only admins can create transactions
+      allow create: if isAdmin() && isValidTransaction();
       
       // Transactions are immutable
       allow update: if false;
