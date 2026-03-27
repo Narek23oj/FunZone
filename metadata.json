@@ -1,0 +1,5 @@
+{
+  "name": "FunZone Group",
+  "description": "A modern, responsive web application for FunZone Group with Admin and User panels, role-based access, event management, and certificate distribution.",
+  "requestFramePermissions": []
+}

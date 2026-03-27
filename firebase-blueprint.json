@@ -1,0 +1,169 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the FunZone application",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string", "description": "Unique username" },
+        "name": { "type": "string", "description": "Full name" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "role": { "type": "string", "enum": ["superadmin", "admin", "user"] },
+        "department": { "type": "string" },
+        "password": { "type": "string", "description": "Base64 encoded password (legacy)" },
+        "hasPassword": { "type": "boolean" },
+        "image": { "type": "string" },
+        "fzCoins": { "type": "number" }
+      },
+      "required": ["username", "name", "role", "hasPassword"]
+    },
+    "Event": {
+      "title": "Event",
+      "description": "An event, seminar, or volunteering opportunity",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["Seminar", "Volunteering", "Event"] },
+        "image": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "description": "User ID of the creator" },
+        "coinsAwarded": { "type": "boolean" },
+        "price": { "type": "number" },
+        "registrationDeadline": { "type": "string", "format": "date-time", "description": "Deadline for event registration" }
+      },
+      "required": ["title", "description", "type", "image", "date", "createdBy"]
+    },
+    "Application": {
+      "title": "Application",
+      "description": "A user's application to an event",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "userId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "appliedAt": { "type": "string", "format": "date-time" },
+        "telegramLink": { "type": "string" },
+        "attended": { "type": "boolean" },
+        "paymentRequired": { "type": "number" }
+      },
+      "required": ["eventId", "userId", "status", "appliedAt"]
+    },
+    "Certificate": {
+      "title": "Certificate",
+      "description": "A certificate issued to a user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "issuedAt": { "type": "string", "format": "date-time" },
+        "isMandatory": { "type": "boolean" },
+        "type": { "type": "string" },
+        "templateData": { "type": "string" }
+      },
+      "required": ["userId", "title", "issuedAt"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "A global announcement",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content", "date"]
+    },
+    "Asset": {
+      "title": "Asset",
+      "description": "An uploaded asset",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "required": ["name", "url"]
+    },
+    "Leave": {
+      "title": "Leave",
+      "description": "A user's leave request",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "appliedAt": { "type": "string", "format": "date-time" },
+        "approvedBy": { "type": "string" },
+        "type": { "type": "string" }
+      },
+      "required": ["userId", "startDate", "endDate", "reason", "status", "appliedAt", "type"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A transaction of FZ Coins",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["add", "subtract", "award", "spend"] },
+        "reason": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "adminId": { "type": "string" }
+      },
+      "required": ["userId", "amount", "type", "reason", "date"]
+    },
+    "CertificateTemplate": {
+      "title": "CertificateTemplate",
+      "description": "A template for generating certificates",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "url": { "type": "string" },
+        "type": { "type": "string", "enum": ["Seminar", "Volunteering", "Event"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "url", "type", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Collection of all users"
+    },
+    "/events/{eventId}": {
+      "schema": { "$ref": "#/entities/Event" },
+      "description": "Collection of all events"
+    },
+    "/applications/{applicationId}": {
+      "schema": { "$ref": "#/entities/Application" },
+      "description": "Collection of all applications"
+    },
+    "/certificates/{certificateId}": {
+      "schema": { "$ref": "#/entities/Certificate" },
+      "description": "Collection of all certificates"
+    },
+    "/announcements/{announcementId}": {
+      "schema": { "$ref": "#/entities/Announcement" },
+      "description": "Collection of all announcements"
+    },
+    "/assets/{assetId}": {
+      "schema": { "$ref": "#/entities/Asset" },
+      "description": "Collection of all assets"
+    },
+    "/leaves/{leaveId}": {
+      "schema": { "$ref": "#/entities/Leave" },
+      "description": "Collection of all leave requests"
+    },
+    "/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "Collection of all coin transactions"
+    },
+    "/certificate_templates/{templateId}": {
+      "schema": { "$ref": "#/entities/CertificateTemplate" },
+      "description": "Collection of certificate templates"
+    }
+  }
+}

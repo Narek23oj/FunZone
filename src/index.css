@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Armenian:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Noto Sans Armenian", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-bg: #0a0a0a;
+  --color-surface: #141414;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-primary: #ffffff;
+  --color-secondary: #a1a1aa;
+  --color-accent: #3b82f6;
+}
+
+@layer base {
+  body {
+    @apply bg-bg text-primary font-sans antialiased;
+    margin: 0;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply tracking-tight;
+  }
+}
+
+@layer components {
+  .minimal-card {
+    @apply bg-surface border border-border rounded-2xl p-6 transition-all duration-300 hover:border-white/20;
+  }
+
+  .minimal-input {
+    @apply w-full bg-surface border border-border rounded-xl px-4 py-3 text-sm transition-all focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 placeholder:text-secondary/50;
+  }
+
+  .minimal-button-primary {
+    @apply bg-primary text-bg px-6 py-3 rounded-xl text-sm font-medium transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .minimal-button-secondary {
+    @apply bg-surface border border-border text-primary px-6 py-3 rounded-xl text-sm font-medium transition-all hover:bg-white/5 active:scale-[0.98];
+  }
+
+  .glass {
+    @apply bg-white/5 backdrop-blur-md border border-white/10;
+  }
+
+  .glass-panel {
+    @apply bg-black/40 backdrop-blur-xl border border-white/10;
+  }
+
+  .glass-input {
+    @apply bg-white/5 border border-white/10 focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all outline-none;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+}

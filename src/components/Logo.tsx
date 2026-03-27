@@ -1,0 +1,27 @@
+import React from 'react';
+
+export function Logo({ className = "w-10 h-10" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="100" cy="100" r="90" stroke="currentColor" strokeWidth="8"/>
+      
+      {/* Center Person */}
+      <circle cx="100" cy="70" r="22" stroke="currentColor" strokeWidth="8"/>
+      <path d="M55 125 C 55 95, 145 95, 145 125" stroke="currentColor" strokeWidth="8" fill="none"/>
+      <path d="M55 125 L 145 125" stroke="currentColor" strokeWidth="8" />
+      
+      {/* Left Person */}
+      <circle cx="50" cy="90" r="16" stroke="currentColor" strokeWidth="8"/>
+      <path d="M15 125 C 15 105, 85 105, 85 125" stroke="currentColor" strokeWidth="8" fill="none"/>
+      <path d="M15 125 L 85 125" stroke="currentColor" strokeWidth="8" />
+      
+      {/* Right Person */}
+      <circle cx="150" cy="90" r="16" stroke="currentColor" strokeWidth="8"/>
+      <path d="M115 125 C 115 105, 185 105, 185 125" stroke="currentColor" strokeWidth="8" fill="none"/>
+      <path d="M115 125 L 185 125" stroke="currentColor" strokeWidth="8" />
+      
+      {/* Text */}
+      <text x="100" y="165" fontFamily="sans-serif" fontSize="28" fontWeight="bold" fill="currentColor" textAnchor="middle">FUN ZONE</text>
+    </svg>
+  );
+}

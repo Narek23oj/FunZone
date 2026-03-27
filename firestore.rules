@@ -1,0 +1,429 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (Auth UID)
+    // Fields:
+    //   - username: string (required)
+    //   - name: string (required)
+    //   - email: string (optional)
+    //   - phone: string (optional)
+    //   - role: string (required, 'superadmin', 'admin', 'user')
+    //   - department: string (optional)
+    //   - password: string (optional)
+    //   - hasPassword: boolean (required)
+    //   - image: string (optional)
+    //   - fzCoins: number (optional)
+    //
+    // Collection: events
+    // Document ID: auto-generated
+    // Fields:
+    //   - title: string (required)
+    //   - description: string (required)
+    //   - type: string (required, 'Seminar', 'Volunteering', 'Event')
+    //   - image: string (required)
+    //   - date: string (required)
+    //   - createdBy: string (required)
+    //   - coinsAwarded: boolean (optional)
+    //   - price: number (optional)
+    //
+    // Collection: applications
+    // Document ID: auto-generated
+    // Fields:
+    //   - eventId: string (required)
+    //   - userId: string (required)
+    //   - status: string (required, 'pending', 'approved', 'rejected')
+    //   - appliedAt: string (required)
+    //   - telegramLink: string (optional)
+    //   - attended: boolean (optional)
+    //   - paymentRequired: number (optional)
+    //
+    // Collection: certificates
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required)
+    //   - recipientName: string (required)
+    //   - title: string (required)
+    //   - issuedAt: string (required)
+    //   - isMandatory: boolean (optional)
+    //   - type: string (optional)
+    //   - templateData: string (optional)
+    //
+    // Collection: announcements
+    // Document ID: auto-generated
+    // Fields:
+    //   - title: string (required)
+    //   - content: string (required)
+    //   - date: string (required)
+    //
+    // Collection: assets
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required)
+    //   - url: string (required)
+    //
+    // Collection: leaves
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required)
+    //   - startDate: string (required)
+    //   - endDate: string (required)
+    //   - reason: string (required)
+    //   - status: string (required, 'pending', 'approved', 'rejected')
+    //   - appliedAt: string (required)
+    //   - type: string (required)
+    //   - approvedBy: string (optional)
+    //
+    // Collection: transactions
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required)
+    //   - amount: number (required)
+    //   - type: string (required, 'add', 'subtract', 'award', 'spend')
+    //   - reason: string (required)
+    //   - date: string (required)
+    //   - adminId: string (optional)
+    //
+    // Collection: certificate_templates
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required)
+    //   - url: string (required)
+    //   - type: string (required, 'Seminar', 'Volunteering', 'Event')
+    //   - createdAt: string (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.email == "narekexiazaryan95@gmail.com" || request.auth.token.email == "narek@funzone.am") ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'superadmin'])
+      );
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.email == "narekexiazaryan95@gmail.com" || request.auth.token.email == "narek@funzone.am") ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'superadmin')
+      );
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidString(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() >= minLen &&
+              request.resource.data[field].size() <= maxLen);
+    }
+
+    function isValidOptionalNumber(field) {
+      return !(field in request.resource.data) || request.resource.data[field] is number;
+    }
+
+    function isValidOptionalBoolean(field) {
+      return !(field in request.resource.data) || request.resource.data[field] is bool;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser() {
+      return hasRequiredFields(['username', 'name', 'role', 'hasPassword']) &&
+             isValidString('username', 1, 100) &&
+             isValidString('name', 1, 200) &&
+             request.resource.data.role in ['superadmin', 'admin', 'user'] &&
+             request.resource.data.hasPassword is bool &&
+             isValidOptionalString('email', 0, 200) &&
+             isValidOptionalString('phone', 0, 50) &&
+             isValidOptionalString('department', 0, 100) &&
+             isValidOptionalString('password', 0, 200) &&
+             isValidOptionalString('image', 0, 800000) &&
+             isValidOptionalNumber('fzCoins');
+    }
+
+    function isValidEvent() {
+      return hasRequiredFields(['title', 'description', 'type', 'image', 'date', 'createdBy']) &&
+             isValidString('title', 1, 200) &&
+             isValidString('description', 1, 10000) &&
+             request.resource.data.type in ['Seminar', 'Volunteering', 'Event'] &&
+             isValidString('image', 1, 800000) &&
+             isValidString('date', 1, 100) &&
+             isValidString('createdBy', 1, 100) &&
+             isValidOptionalString('registrationDeadline', 1, 100) &&
+             isValidOptionalBoolean('coinsAwarded') &&
+             isValidOptionalNumber('price');
+    }
+
+    function isValidApplication() {
+      return hasRequiredFields(['eventId', 'userId', 'status', 'appliedAt']) &&
+             isValidString('eventId', 1, 50) &&
+             isValidString('userId', 1, 50) &&
+             request.resource.data.status in ['pending', 'approved', 'rejected'] &&
+             isValidString('appliedAt', 1, 50) &&
+             isValidOptionalString('telegramLink', 0, 500) &&
+             isValidOptionalBoolean('attended') &&
+             isValidOptionalNumber('paymentRequired');
+    }
+
+    function isRegistrationOpen(eventId) {
+      let event = get(/databases/$(database)/documents/events/$(eventId)).data;
+      let deadline = ('registrationDeadline' in event) ? event.registrationDeadline : event.date;
+      // Handle YYYY-MM-DD by appending T00:00:00Z to close registration at the start of the deadline day
+      return request.time < timestamp(deadline + "T00:00:00Z");
+    }
+
+    function isValidCertificate() {
+      return hasRequiredFields(['userId', 'recipientName', 'title', 'issuedAt']) &&
+             isValidString('userId', 1, 100) &&
+             isValidString('recipientName', 1, 200) &&
+             isValidString('title', 1, 200) &&
+             isValidString('issuedAt', 1, 100) &&
+             isValidOptionalBoolean('isMandatory') &&
+             isValidOptionalString('type', 0, 100) &&
+             isValidOptionalString('templateData', 0, 800000);
+    }
+
+    function isValidAnnouncement() {
+      return hasRequiredFields(['title', 'content', 'date']) &&
+             isValidString('title', 1, 200) &&
+             isValidString('content', 1, 20000) &&
+             isValidString('date', 1, 100);
+    }
+
+    function isValidAsset() {
+      return hasRequiredFields(['name', 'url']) &&
+             isValidString('name', 1, 200) &&
+             isValidString('url', 1, 800000);
+    }
+
+    function isValidLeave() {
+      return hasRequiredFields(['userId', 'startDate', 'endDate', 'reason', 'status', 'appliedAt', 'type']) &&
+             isValidString('userId', 1, 50) &&
+             isValidString('startDate', 1, 50) &&
+             isValidString('endDate', 1, 50) &&
+             isValidString('reason', 1, 5000) &&
+             request.resource.data.status in ['pending', 'approved', 'rejected'] &&
+             isValidString('appliedAt', 1, 50) &&
+             isValidString('type', 1, 100) &&
+             isValidOptionalString('approvedBy', 0, 50);
+    }
+
+    function isValidTransaction() {
+      return hasRequiredFields(['userId', 'amount', 'type', 'reason', 'date']) &&
+             isValidString('userId', 1, 50) &&
+             request.resource.data.amount is number &&
+             request.resource.data.type in ['add', 'subtract', 'award', 'spend'] &&
+             isValidString('reason', 1, 1000) &&
+             isValidString('date', 1, 50) &&
+             isValidOptionalString('adminId', 0, 50);
+    }
+
+    function isValidCertificateTemplate() {
+      return hasRequiredFields(['name', 'url', 'type', 'createdAt']) &&
+             isValidString('name', 1, 200) &&
+             isValidString('url', 1, 800000) &&
+             request.resource.data.type in ['Seminar', 'Volunteering', 'Event'] &&
+             isValidString('createdAt', 1, 100);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /public_users/{username} {
+      allow read: if true;
+      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid != null);
+    }
+
+    match /public_emails/{email} {
+      allow read: if true;
+      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid != null);
+    }
+
+    match /public_phones/{phone} {
+      allow read: if true;
+      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid != null);
+    }
+
+    match /users/{userId} {
+      // Users can read their own profile, admins can read all
+      // Pending users can read their own pending document if their auth email matches
+      allow read: if isOwner(userId) || isAdmin() || (
+        isAuthenticated() && 
+        resource.data.hasPassword == false && (
+          (resource.data.get('email', '') != '' && request.auth.token.email.lower() == resource.data.email.lower()) ||
+          (resource.data.get('email', '') == '' && request.auth.token.email.lower() == resource.data.username.lower().replace(" ", "") + '@funzone.am')
+        )
+      );
+      
+      // Only superadmins can create users, or users can create themselves if they are just a 'user'
+      // OR if they are migrating from a pending document (ID = username)
+      allow create: if isAuthenticated() && isValidUser() && (
+        isSuperAdmin() || isAdmin() ||
+        (isOwner(userId) && (
+          request.resource.data.role == 'user' || 
+          (exists(/databases/$(database)/documents/users/$(request.resource.data.username)) && 
+           get(/databases/$(database)/documents/users/$(request.resource.data.username)).data.role == request.resource.data.role)
+        ))
+      );
+      
+      // Users can update their own profile (but not their role), superadmins can update anything
+      allow update: if isAuthenticated() && isValidUser() && (
+        isSuperAdmin() || isAdmin() ||
+        (isOwner(userId) && request.resource.data.role == resource.data.role)
+      );
+      
+      // Allow deletion of the pending document (ID = username) by the owner who just migrated
+      allow delete: if isSuperAdmin() || isAdmin() || (
+        isAuthenticated() && 
+        resource.data.hasPassword == false && (
+          (resource.data.get('email', '') != '' && request.auth.token.email.lower() == resource.data.email.lower()) ||
+          (resource.data.get('email', '') == '' && request.auth.token.email.lower() == resource.data.username.lower().replace(" ", "") + '@funzone.am')
+        )
+      );
+    }
+
+    match /events/{eventId} {
+      // Anyone authenticated can read events
+      allow read: if isAuthenticated();
+      
+      // Only admins can create/update/delete events
+      allow create: if isAdmin() && isValidEvent();
+      allow update: if isAdmin() && isValidEvent();
+      allow delete: if isAdmin();
+    }
+
+    match /applications/{applicationId} {
+      // Users can read their own applications, admins can read all
+      allow read: if isAuthenticated() && (
+        isAdmin() || 
+        resource.data.userId == request.auth.uid
+      );
+      
+      // Users can apply for themselves, admins can create applications
+      allow create: if isAuthenticated() && isValidApplication() && (
+        isAdmin() || 
+        (request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending' && isRegistrationOpen(request.resource.data.eventId))
+      );
+      
+      // Admins can update applications (approve/reject), users cannot
+      allow update: if isAdmin() && isValidApplication();
+      
+      // Admins can delete applications, users can delete their own pending applications
+      allow delete: if isAuthenticated() && (
+        isAdmin() || 
+        (resource.data.userId == request.auth.uid && resource.data.status == 'pending')
+      );
+    }
+
+    match /certificates/{certificateId} {
+      // Users can read their own certificates, admins can read all
+      allow read: if isAuthenticated() && (
+        isAdmin() || 
+        resource.data.userId == request.auth.uid
+      );
+      
+      // Only admins can manage certificates
+      allow create: if isAdmin() && isValidCertificate();
+      allow update: if isAdmin() && isValidCertificate();
+      allow delete: if isAdmin();
+    }
+
+    match /announcements/{announcementId} {
+      // Anyone authenticated can read announcements
+      allow read: if isAuthenticated();
+      
+      // Only admins can manage announcements
+      allow create: if isAdmin() && isValidAnnouncement();
+      allow update: if isAdmin() && isValidAnnouncement();
+      allow delete: if isAdmin();
+    }
+
+    match /assets/{assetId} {
+      // Anyone authenticated can read assets
+      allow read: if isAuthenticated();
+      
+      // Only admins can manage assets
+      allow create: if isAdmin() && isValidAsset();
+      allow update: if isAdmin() && isValidAsset();
+      allow delete: if isAdmin();
+    }
+
+    match /leaves/{leaveId} {
+      // Users can read their own leaves, admins can read all
+      allow read: if isAuthenticated() && (
+        isAdmin() || 
+        resource.data.userId == request.auth.uid
+      );
+      
+      // Users can apply for themselves, admins can create leaves
+      allow create: if isAuthenticated() && isValidLeave() && (
+        isAdmin() ||
+        (request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending')
+      );
+      
+      // Admins can update leaves (approve/reject), users cannot
+      allow update: if isAdmin() && isValidLeave();
+      
+      // Admins can delete leaves, users can delete their own pending leaves
+      allow delete: if isAuthenticated() && (
+        isAdmin() || 
+        (resource.data.userId == request.auth.uid && resource.data.status == 'pending')
+      );
+    }
+
+    match /transactions/{transactionId} {
+      // Users can read their own transactions, admins can read all
+      allow read: if isAuthenticated() && (
+        isAdmin() || 
+        resource.data.userId == request.auth.uid
+      );
+      
+      // Only admins can create transactions
+      allow create: if isAdmin() && isValidTransaction();
+      
+      // Transactions are immutable
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    match /certificate_templates/{templateId} {
+      // Anyone authenticated can read templates
+      allow read: if isAuthenticated();
+      
+      // Only admins can manage templates
+      allow create: if isAdmin() && isValidCertificateTemplate();
+      allow update: if isAdmin() && isValidCertificateTemplate();
+      allow delete: if isAdmin();
+    }
+  }
+}
