@@ -197,8 +197,8 @@ service cloud.firestore {
     function isRegistrationOpen(eventId) {
       let event = get(/databases/$(database)/documents/events/$(eventId)).data;
       let deadline = ('registrationDeadline' in event) ? event.registrationDeadline : event.date;
-      // Handle YYYY-MM-DD by appending T00:00:00Z to close registration at the start of the deadline day
-      return request.time < timestamp(deadline + "T00:00:00Z");
+      // Handle YYYY-MM-DD by appending T23:59:59Z to close registration at the end of the deadline day
+      return request.time < timestamp(deadline + "T23:59:59Z");
     }
 
     function isValidCertificate() {
@@ -408,8 +408,11 @@ service cloud.firestore {
         resource.data.userId == request.auth.uid
       );
       
-      // Only admins can create transactions
-      allow create: if isAdmin() && isValidTransaction();
+      // Admins can create any transaction, users can create 'spend' transactions for themselves
+      allow create: if isAuthenticated() && isValidTransaction() && (
+        isAdmin() || 
+        (request.resource.data.userId == request.auth.uid && request.resource.data.type == 'spend')
+      );
       
       // Transactions are immutable
       allow update: if false;

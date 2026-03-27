@@ -32,8 +32,10 @@ export default function UserDashboard() {
   const [pendingPayment, setPendingPayment] = useState<number>(0);
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [processingEventId, setProcessingEventId] = useState<string | null>(null);
 
   const handleApplyClick = (eventId: string) => {
+    if (processingEventId) return;
     const event = events.find(e => e.id === eventId);
     if (!event) return;
 
@@ -49,32 +51,29 @@ export default function UserDashboard() {
     }
   };
 
-  const processApplication = (eventId: string) => {
+  const processApplication = async (eventId: string) => {
+    if (processingEventId) return;
+    setProcessingEventId(eventId);
     try {
       const event = events.find(e => e.id === eventId);
       if (!event) throw new Error('Միջոցառումը չի գտնվել');
 
       const price = event.price || 0;
-      const userCoins = user?.fzCoins || 0;
-
+      
+      await applyForEvent(eventId, user!.id, price);
+      
       if (price > 0) {
-        if (userCoins >= price) {
-          updateUser(user!.id, { fzCoins: userCoins - price });
-          applyForEvent(eventId, user!.id, 0);
-          toast.success(`Գրանցումը հաջողությամբ կատարվեց: ${price} FZ Coin գանձվեց:`);
-        } else {
-          applyForEvent(eventId, user!.id, price);
-          toast.success(`Գրանցումը հաջողությամբ կատարվեց:`);
-        }
+        toast.success(`Գրանցումը հաջողությամբ կատարվեց: ${price} FZ Coin գանձվեց:`);
       } else {
-        applyForEvent(eventId, user!.id);
         toast.success('Գրանցումը հաջողությամբ կատարվեց:');
       }
     } catch (error: any) {
       toast.error(error.message);
+    } finally {
+      setProcessingEventId(null);
+      setPaymentModalOpen(false);
+      setPendingEventId(null);
     }
-    setPaymentModalOpen(false);
-    setPendingEventId(null);
   };
 
   const userApplications = applications.filter(a => a.userId === user?.id);
@@ -324,15 +323,17 @@ export default function UserDashboard() {
                       <p className="text-sm text-secondary mb-6 flex-1 line-clamp-3">{event.description}</p>
                       
                       <button
-                        onClick={() => canRegister && handleApplyClick(event.id)}
-                        disabled={!canRegister}
+                        onClick={() => canRegister && !processingEventId && handleApplyClick(event.id)}
+                        disabled={!canRegister || !!processingEventId}
                         className={`w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-                          !canRegister 
+                          !canRegister || !!processingEventId
                             ? 'bg-white/5 text-secondary cursor-not-allowed border border-border' 
                             : 'minimal-button-primary'
                         }`}
                       >
-                        {hasApplied ? (
+                        {processingEventId === event.id ? (
+                          'Մշակվում է...'
+                        ) : hasApplied ? (
                           <><CheckCircle size={18} /> Գրանցված է</>
                         ) : isPastDeadline ? (
                           <><XCircle size={18} /> Գրանցումը փակ է</>

@@ -1263,11 +1263,15 @@ export default function AdminDashboard() {
                               }`}>
                                 {app.status === 'pending' ? 'Սպասվող' : app.status === 'approved' ? 'Հաստատված' : 'Մերժված'}
                               </span>
-                              {app.paymentRequired && app.paymentRequired > 0 && (
+                              {app.paidAmount && app.paidAmount > 0 ? (
+                                <span className="text-[10px] text-green-400 font-bold uppercase tracking-widest">
+                                  Վճարված է: {app.paidAmount} 🪙
+                                </span>
+                              ) : app.paymentRequired && app.paymentRequired > 0 ? (
                                 <span className="text-[10px] text-orange-400 font-bold uppercase tracking-widest">
                                   Վճարելու է իրական գումար
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                           </td>
                           <td className="px-4 py-3 text-right">
@@ -1369,11 +1373,15 @@ export default function AdminDashboard() {
 
                       <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
                         <div className="font-bold text-sm mb-1">{appEvent.title}</div>
-                        {app.paymentRequired && app.paymentRequired > 0 && (
+                        {app.paidAmount && app.paidAmount > 0 ? (
+                          <div className="text-[10px] text-green-400 font-bold uppercase tracking-widest">
+                            Վճարված է: {app.paidAmount} 🪙
+                          </div>
+                        ) : app.paymentRequired && app.paymentRequired > 0 ? (
                           <div className="text-[10px] text-orange-400 font-bold uppercase tracking-widest">
                             Վճարելու է իրական գումար
                           </div>
-                        )}
+                        ) : null}
                       </div>
 
                       <div className="flex justify-end gap-2 pt-2">

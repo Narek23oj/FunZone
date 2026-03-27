@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, doc, setDoc, deleteDoc, updateDoc, onSnapshot, query, getDoc, where } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, updateDoc, onSnapshot, query, getDoc, where, runTransaction } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firebase-errors';
 import { useAuth } from './AuthContext';
 
@@ -26,6 +26,7 @@ export interface Application {
   telegramLink?: string;
   attended?: boolean;
   paymentRequired?: number;
+  paidAmount?: number;
 }
 
 export interface Certificate {
@@ -186,23 +187,62 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const applyForEvent = async (eventId: string, userId: string, paymentRequired?: number) => {
-    const exists = applications.find(a => a.eventId === eventId && a.userId === userId);
-    if (exists) throw new Error('Այս միջոցառման համար արդեն դիմել եք:');
-
+  const applyForEvent = async (eventId: string, userId: string, price: number = 0) => {
     try {
-      const newRef = doc(collection(db, 'applications'));
-      const newApp: Omit<Application, 'id'> = {
-        eventId,
-        userId,
-        status: 'pending',
-        appliedAt: new Date().toISOString(),
-      };
-      if (paymentRequired !== undefined) {
-        newApp.paymentRequired = paymentRequired;
+      await runTransaction(db, async (transaction) => {
+        // Check if application already exists using deterministic ID
+        const appRef = doc(db, 'applications', `${userId}_${eventId}`);
+        const appDoc = await transaction.get(appRef);
+        
+        if (appDoc.exists()) {
+          throw new Error('Այս միջոցառման համար արդեն դիմել եք:');
+        }
+
+        const userRef = doc(db, 'users', userId);
+        const userDoc = await transaction.get(userRef);
+        
+        if (!userDoc.exists()) throw new Error('Օգտատերը չի գտնվել');
+        
+        const userData = userDoc.data();
+        const currentCoins = userData.fzCoins || 0;
+        
+        if (price > 0 && currentCoins < price) {
+          throw new Error('Անբավարար FZ Coins');
+        }
+
+        // Create application
+        const newApp = {
+          eventId,
+          userId,
+          status: 'pending',
+          appliedAt: new Date().toISOString(),
+          paymentRequired: 0,
+          paidAmount: price
+        };
+        transaction.set(appRef, newApp);
+
+        // Deduct coins if price > 0
+        if (price > 0) {
+          transaction.update(userRef, { fzCoins: currentCoins - price });
+          
+          // Add transaction record
+          const transRef = doc(collection(db, 'transactions'));
+          const event = events.find(e => e.id === eventId);
+          transaction.set(transRef, {
+            userId,
+            amount: -price,
+            type: 'spend',
+            reason: `Վճարում սեմինարի համար՝ ${event?.title || 'Միջոցառում'}`,
+            date: new Date().toISOString()
+          });
+        }
+      });
+    } catch (error: any) {
+      if (error.message === 'Այս միջոցառման համար արդեն դիմել եք:' || 
+          error.message === 'Անբավարար FZ Coins' || 
+          error.message === 'Օգտատերը չի գտնվել') {
+        throw error;
       }
-      await setDoc(newRef, newApp);
-    } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'applications');
     }
   };
