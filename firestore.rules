@@ -157,17 +157,18 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidUser() {
-      return hasRequiredFields(['username', 'name', 'role', 'hasPassword']) &&
-             isValidString('username', 1, 100) &&
-             isValidString('name', 1, 200) &&
+      return hasRequiredFields(['username', 'name', 'role']) &&
+             isValidString('username', 1, 200) &&
+             isValidString('name', 1, 500) &&
              request.resource.data.role in ['superadmin', 'admin', 'user'] &&
-             request.resource.data.hasPassword is bool &&
-             isValidOptionalString('email', 0, 200) &&
-             isValidOptionalString('phone', 0, 50) &&
-             isValidOptionalString('department', 0, 100) &&
-             isValidOptionalString('password', 0, 200) &&
-             isValidOptionalString('image', 0, 800000) &&
-             isValidOptionalNumber('fzCoins');
+             isValidOptionalBoolean('hasPassword') &&
+             isValidOptionalString('email', 0, 500) &&
+             isValidOptionalString('phone', 0, 100) &&
+             isValidOptionalString('department', 0, 200) &&
+             isValidOptionalString('password', 0, 500) &&
+             isValidOptionalString('image', 0, 2000000) &&
+             isValidOptionalNumber('fzCoins') &&
+             isValidOptionalString('createdAt', 0, 100);
     }
 
     function isValidEvent() {
@@ -185,20 +186,22 @@ service cloud.firestore {
 
     function isValidApplication() {
       return hasRequiredFields(['eventId', 'userId', 'status', 'appliedAt']) &&
-             isValidString('eventId', 1, 50) &&
-             isValidString('userId', 1, 50) &&
+             isValidString('eventId', 1, 100) &&
+             isValidString('userId', 1, 100) &&
              request.resource.data.status in ['pending', 'approved', 'rejected'] &&
-             isValidString('appliedAt', 1, 50) &&
-             isValidOptionalString('telegramLink', 0, 500) &&
+             isValidString('appliedAt', 1, 100) &&
+             isValidOptionalString('telegramLink', 0, 1000) &&
              isValidOptionalBoolean('attended') &&
-             isValidOptionalNumber('paymentRequired');
+             isValidOptionalNumber('paymentRequired') &&
+             isValidOptionalNumber('paidAmount');
     }
 
     function isRegistrationOpen(eventId) {
       let event = get(/databases/$(database)/documents/events/$(eventId)).data;
-      let deadline = ('registrationDeadline' in event) ? event.registrationDeadline : event.date;
-      // Handle YYYY-MM-DD by appending T23:59:59Z to close registration at the end of the deadline day
-      return request.time < timestamp(deadline + "T23:59:59Z");
+      let deadline = (event != null && 'registrationDeadline' in event) ? event.registrationDeadline : (event != null ? event.date : null);
+      // Handle both YYYY-MM-DD and ISO strings
+      let deadlineTs = (deadline != null && deadline.size() <= 10) ? timestamp(deadline + "T23:59:59Z") : (deadline != null ? timestamp(deadline) : null);
+      return deadlineTs != null && request.time < deadlineTs;
     }
 
     function isValidCertificate() {

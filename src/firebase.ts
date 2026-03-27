@@ -17,28 +17,40 @@ const firebaseConfig = {
 
 const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseAppletConfig.firestoreDatabaseId;
 
+console.log("Initializing Firebase with Project ID:", firebaseConfig.projectId);
+console.log("Using Firestore Database ID:", databaseId || '(default)');
+
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, databaseId || '(default)');
+// If databaseId is '(default)' or empty, use the default database
+export const db = (databaseId && databaseId !== '(default)') 
+  ? getFirestore(app, databaseId) 
+  : getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 
 // Test connection to Firestore
 import { getDocFromServer, doc } from 'firebase/firestore';
-async function testConnection(retries = 3) {
-  console.log(`Starting Firestore connection test (attempt ${4 - retries})...`);
+async function testConnection(retries = 5) {
+  const currentAttempt = 6 - retries;
+  console.log(`Starting Firestore connection test (attempt ${currentAttempt})...`);
   try {
     // Try to get a non-existent document from the server to test connectivity
     const testDoc = doc(db, '_connection_test_', 'test');
-    console.log("Attempting to get doc from path:", testDoc.path);
     await getDocFromServer(testDoc);
     console.log("Firestore connection successful to database:", databaseId || '(default)');
   } catch (error: any) {
-    console.error("Firestore connection test failed with error:", error.code, error.message);
-    if (retries > 0 && error.message.includes('the client is offline')) {
-      console.log("Retrying in 5 seconds...");
-      setTimeout(() => testConnection(retries - 1), 5000);
-    } else if (error.message.includes('the client is offline')) {
-      console.error("CRITICAL: Firestore is offline after multiple retries. This usually means the databaseId is incorrect or the database is not provisioned. If this is a remixed app, please run the Firebase Setup again.");
+    console.error(`Firestore connection test failed (attempt ${currentAttempt}) with error:`, error.code, error.message);
+    
+    if (retries > 0) {
+      const delay = 5000;
+      console.log(`Retrying in ${delay/1000} seconds...`);
+      setTimeout(() => testConnection(retries - 1), delay);
+    } else {
+      console.error("CRITICAL: Firestore is offline after multiple retries. Possible causes:");
+      console.error("1. The databaseId is incorrect (current:", databaseId || '(default)', ")");
+      console.error("2. The database is not provisioned in the project:", firebaseConfig.projectId);
+      console.error("3. Network/Proxy issues in the environment.");
+      console.error("If this is a remixed app, please run the Firebase Setup again.");
     }
   }
 }
