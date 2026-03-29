@@ -16,13 +16,14 @@ export default defineConfig(({mode}) => {
       },
     },
     build: {
-      chunkSizeWarningLimit: 1000,
+      chunkSizeWarningLimit: 2000,
       rollupOptions: {
         output: {
           manualChunks: {
             'vendor-react': ['react', 'react-dom', 'react-router-dom'],
             'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
             'vendor-ui': ['lucide-react', 'motion', 'clsx', 'tailwind-merge'],
+            'vendor-pdf': ['jspdf', 'pdf-lib'],
           },
         },
       },
