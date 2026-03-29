@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LogOut, Calendar, CheckCircle, Clock, XCircle, Search, Award, Megaphone, Download, Users, Menu, X } from 'lucide-react';
+import { LogOut, Calendar, CheckCircle, Clock, XCircle, Search, Award, Megaphone, Download, Users, Menu, X, Info, Video, MapPin, ExternalLink, Shirt } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 import { toast } from 'sonner';
@@ -27,6 +27,7 @@ export default function UserDashboard() {
   const { events, applications, applyForEvent, certificates, announcements } = useData();
   const [activeTab, setActiveTab] = useState<'explore' | 'applications' | 'certificates' | 'announcements' | 'directory'>('explore');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedEventForDetails, setSelectedEventForDetails] = useState<any | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [pendingEventId, setPendingEventId] = useState<string | null>(null);
   const [pendingPayment, setPendingPayment] = useState<number>(0);
@@ -329,25 +330,34 @@ export default function UserDashboard() {
 
                       <p className="text-sm text-secondary mb-6 flex-1 line-clamp-3">{event.description}</p>
                       
-                      <button
-                        onClick={() => canRegister && !processingEventId && handleApplyClick(event.id)}
-                        disabled={!canRegister || !!processingEventId}
-                        className={`w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-                          !canRegister || !!processingEventId
-                            ? 'bg-white/5 text-secondary cursor-not-allowed border border-border' 
-                            : 'minimal-button-primary'
-                        }`}
-                      >
-                        {processingEventId === event.id ? (
-                          'Մշակվում է...'
-                        ) : hasApplied ? (
-                          <><CheckCircle size={18} /> Գրանցված է</>
-                        ) : isPastDeadline ? (
-                          <><XCircle size={18} /> Գրանցումը փակ է</>
-                        ) : (
-                          'Գրանցվել Հիմա'
-                        )}
-                      </button>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          onClick={() => setSelectedEventForDetails(event)}
+                          className="w-full py-2 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 bg-white/5 text-primary border border-primary/20 hover:bg-primary/10"
+                        >
+                          <Info size={14} /> Մանրամասներ
+                        </button>
+                        
+                        <button
+                          onClick={() => canRegister && !processingEventId && handleApplyClick(event.id)}
+                          disabled={!canRegister || !!processingEventId}
+                          className={`w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                            !canRegister || !!processingEventId
+                              ? 'bg-white/5 text-secondary cursor-not-allowed border border-border' 
+                              : 'minimal-button-primary'
+                          }`}
+                        >
+                          {processingEventId === event.id ? (
+                            'Մշակվում է...'
+                          ) : hasApplied ? (
+                            <><CheckCircle size={18} /> Գրանցված է</>
+                          ) : isPastDeadline ? (
+                            <><XCircle size={18} /> Գրանցումը փակ է</>
+                          ) : (
+                            'Գրանցվել Հիմա'
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 );
@@ -383,8 +393,28 @@ export default function UserDashboard() {
                           <Calendar size={12} className="mr-1" />
                           {new Date(appEvent.date).toLocaleDateString('hy-AM')}
                         </div>
+                        {appEvent.isOnline ? (
+                          <div className="flex items-center text-[10px] text-primary mt-1 font-bold">
+                            <Video size={10} className="mr-1" /> Օնլայն
+                          </div>
+                        ) : appEvent.location && (
+                          <div className="flex items-center text-[10px] text-secondary mt-1 truncate">
+                            <MapPin size={10} className="mr-1" /> {appEvent.location}
+                          </div>
+                        )}
                       </div>
                     </div>
+
+                    {app.status === 'approved' && appEvent.isOnline && appEvent.meetingLink && (
+                      <a 
+                        href={appEvent.meetingLink} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full py-2 rounded-xl bg-primary/10 text-primary font-bold text-[10px] border border-primary/20 hover:bg-primary/20 transition-all"
+                      >
+                        <ExternalLink size={12} /> Միանալ Հանդիպմանը
+                      </a>
+                    )}
 
                     <div className="flex items-center justify-between pt-4 border-t border-border">
                       <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border ${
@@ -584,6 +614,134 @@ export default function UserDashboard() {
                 >
                   Չեղարկել
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Event Details Modal */}
+      <AnimatePresence>
+        {selectedEventForDetails && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-bg/90 backdrop-blur-md"
+              onClick={() => setSelectedEventForDetails(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto minimal-card p-0 custom-scrollbar"
+            >
+              <button 
+                onClick={() => setSelectedEventForDetails(null)}
+                className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="h-64 relative">
+                <img src={selectedEventForDetails.image} alt={selectedEventForDetails.title} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-bg via-transparent to-transparent" />
+                <div className="absolute bottom-6 left-6 right-6">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-primary mb-2">
+                    {EVENT_TYPE_LABELS[selectedEventForDetails.type] || selectedEventForDetails.type}
+                  </div>
+                  <h2 className="text-3xl font-bold leading-tight">{selectedEventForDetails.title}</h2>
+                </div>
+              </div>
+
+              <div className="p-8 space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 text-secondary">
+                      <Calendar className="text-primary" size={20} />
+                      <div>
+                        <div className="text-[10px] uppercase font-bold tracking-widest opacity-50">Ամսաթիվ</div>
+                        <div className="text-sm font-medium">
+                          {new Date(selectedEventForDetails.date).toLocaleDateString('hy-AM', { 
+                            year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedEventForDetails.isOnline ? (
+                      <div className="flex items-center gap-3 text-secondary">
+                        <Video className="text-primary" size={20} />
+                        <div>
+                          <div className="text-[10px] uppercase font-bold tracking-widest opacity-50">Հարթակ</div>
+                          <div className="text-sm font-medium">Օնլայն (Online)</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3 text-secondary">
+                        <MapPin className="text-primary" size={20} />
+                        <div>
+                          <div className="text-[10px] uppercase font-bold tracking-widest opacity-50">Վայրը</div>
+                          <div className="text-sm font-medium">{selectedEventForDetails.location || 'Նշված չէ'}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedEventForDetails.price && (
+                      <div className="flex items-center gap-3 text-secondary">
+                        <span className="text-xl">🪙</span>
+                        <div>
+                          <div className="text-[10px] uppercase font-bold tracking-widest opacity-50">Արժեքը</div>
+                          <div className="text-sm font-medium">{selectedEventForDetails.price} FZ Coins</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedEventForDetails.dressCode && (
+                      <div className="flex items-center gap-3 text-secondary">
+                        <Shirt className="text-primary" size={20} />
+                        <div>
+                          <div className="text-[10px] uppercase font-bold tracking-widest opacity-50">Դրես Կոդ</div>
+                          <div className="text-sm font-medium">{selectedEventForDetails.dressCode}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    {selectedEventForDetails.isOnline && selectedEventForDetails.meetingLink && (
+                      <a 
+                        href={selectedEventForDetails.meetingLink} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-primary/10 text-primary font-bold text-sm border border-primary/20 hover:bg-primary/20 transition-all"
+                      >
+                        <ExternalLink size={18} /> Միանալ Հանդիպմանը
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-lg font-bold border-l-4 border-primary pl-4">Նկարագրություն</h3>
+                  <p className="text-secondary leading-relaxed whitespace-pre-wrap">
+                    {selectedEventForDetails.description}
+                  </p>
+                </div>
+
+                {!selectedEventForDetails.isOnline && selectedEventForDetails.location && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-bold border-l-4 border-primary pl-4">Միջոցառման Վայրը</h3>
+                    <div className="w-full p-8 rounded-2xl bg-primary/5 border border-primary/10 flex flex-col items-center text-center gap-4">
+                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                        <MapPin size={32} />
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold text-primary mb-1">{selectedEventForDetails.location}</p>
+                        <p className="text-xs text-secondary">Խնդրում ենք ժամանել միջոցառման սկզբից 15 րոպե շուտ:</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>

@@ -181,7 +181,11 @@ service cloud.firestore {
              isValidString('createdBy', 1, 100) &&
              isValidOptionalString('registrationDeadline', 1, 100) &&
              isValidOptionalBoolean('coinsAwarded') &&
-             isValidOptionalNumber('price');
+             isValidOptionalNumber('price') &&
+             isValidOptionalString('location', 0, 1000) &&
+             isValidOptionalBoolean('isOnline') &&
+             isValidOptionalString('meetingLink', 0, 2000) &&
+             isValidOptionalString('dressCode', 0, 500);
     }
 
     function isValidApplication() {

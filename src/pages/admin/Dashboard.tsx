@@ -40,7 +40,19 @@ export default function AdminDashboard() {
   const [templateData, setTemplateData] = useState({ name: '', description: '', imageUrl: '' });
   
   const [formData, setFormData] = useState({ username: '', name: '', email: '', phone: '', department: 'Certificate', image: '', password: '' });
-  const [eventData, setEventData] = useState({ title: '', description: '', type: 'Event', image: '', date: '', price: 0, registrationDeadline: '' });
+  const [eventData, setEventData] = useState({ 
+    title: '', 
+    description: '', 
+    type: 'Event', 
+    image: '', 
+    date: '', 
+    price: 0, 
+    registrationDeadline: '',
+    location: '',
+    isOnline: false,
+    meetingLink: '',
+    dressCode: ''
+  });
 
   // Department specific states
   const [certData, setCertData] = useState<{ eventId: string, title: string, isMandatory: boolean, type: string, templateData: string | null }>({ eventId: '', title: '', isMandatory: false, type: 'Event', templateData: null });
@@ -230,6 +242,18 @@ export default function AdminDashboard() {
       return;
     }
 
+    if (eventData.isOnline && eventData.type === 'Seminar') {
+      if (!eventData.meetingLink?.trim()) {
+        toast.error('Խնդրում ենք տրամադրել հանդիպման հղումը:');
+        return;
+      }
+    } else {
+      if (!eventData.location?.trim()) {
+        toast.error('Խնդրում ենք տրամադրել միջոցառման վայրը:');
+        return;
+      }
+    }
+
     const submissionData: any = {
       title: eventData.title.trim(),
       description: eventData.description.trim(),
@@ -237,6 +261,10 @@ export default function AdminDashboard() {
       image: eventData.image || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(eventData.title)}`,
       date: eventData.date,
       registrationDeadline: eventData.registrationDeadline || eventData.date,
+      location: eventData.isOnline ? '' : eventData.location.trim(),
+      isOnline: eventData.isOnline,
+      meetingLink: eventData.isOnline ? eventData.meetingLink.trim() : '',
+      dressCode: eventData.dressCode.trim()
     };
 
     if (eventData.type === 'Seminar') {
@@ -507,7 +535,11 @@ export default function AdminDashboard() {
       image: event.image,
       date: event.date,
       price: event.price || 0,
-      registrationDeadline: event.registrationDeadline || event.date
+      registrationDeadline: event.registrationDeadline || event.date,
+      location: event.location || '',
+      isOnline: event.isOnline || false,
+      meetingLink: event.meetingLink || '',
+      dressCode: event.dressCode || ''
     });
     setIsEventModalOpen(true);
   };
@@ -515,7 +547,19 @@ export default function AdminDashboard() {
   const closeEventModal = () => {
     setIsEventModalOpen(false);
     setSelectedEvent(null);
-    setEventData({ title: '', description: '', type: 'Event', image: '', date: '', price: 0, registrationDeadline: '' });
+    setEventData({ 
+      title: '', 
+      description: '', 
+      type: 'Event', 
+      image: '', 
+      date: '', 
+      price: 0, 
+      registrationDeadline: '',
+      location: '',
+      isOnline: false,
+      meetingLink: '',
+      dressCode: ''
+    });
   };
 
   const displayedUsers = users.filter(u => {
@@ -2355,18 +2399,95 @@ export default function AdminDashboard() {
                 </div>
 
                 {eventData.type === 'Seminar' && (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-4 bg-slate-800/50 p-3 rounded-xl border border-border">
+                      <span className="text-xs text-gray-400">Տեսակը՝</span>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                            type="radio" 
+                            checked={!eventData.isOnline} 
+                            onChange={() => setEventData({...eventData, isOnline: false})}
+                            className="accent-purple-500"
+                          />
+                          <span className="text-sm">Ֆիզիկական</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                            type="radio" 
+                            checked={eventData.isOnline} 
+                            onChange={() => setEventData({...eventData, isOnline: true})}
+                            className="accent-purple-500"
+                          />
+                          <span className="text-sm">Օնլայն</span>
+                        </label>
+                      </div>
+                    </div>
+                    
+                    {eventData.isOnline ? (
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1 ml-1">Հանդիպման Հղում (Meeting Link)</label>
+                        <input
+                          type="url"
+                          value={eventData.meetingLink}
+                          onChange={e => setEventData({...eventData, meetingLink: e.target.value})}
+                          className="w-full glass-input rounded-xl px-4 py-3 text-sm"
+                          placeholder="https://zoom.us/j/..."
+                          required
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1 ml-1">Վայրը (Location)</label>
+                        <input
+                          type="text"
+                          value={eventData.location}
+                          onChange={e => setEventData({...eventData, location: e.target.value})}
+                          className="w-full glass-input rounded-xl px-4 py-3 text-sm"
+                          placeholder="օր. Երևան, Ազատության 24"
+                          required
+                        />
+                      </div>
+                    )}
+                    
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1 ml-1">Գին (FZ Coins)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={eventData.price}
+                        onChange={e => setEventData({...eventData, price: parseInt(e.target.value) || 0})}
+                        className="w-full glass-input rounded-xl px-4 py-3 text-sm"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {eventData.type !== 'Seminar' && (
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1 ml-1">Գին (FZ Coins)</label>
+                    <label className="block text-xs text-gray-400 mb-1 ml-1">Վայրը (Location)</label>
                     <input
-                      type="number"
-                      min="0"
-                      value={eventData.price}
-                      onChange={e => setEventData({...eventData, price: parseInt(e.target.value) || 0})}
+                      type="text"
+                      value={eventData.location}
+                      onChange={e => setEventData({...eventData, location: e.target.value})}
                       className="w-full glass-input rounded-xl px-4 py-3 text-sm"
-                      placeholder="0"
+                      placeholder="օր. Երևան, Ազատության 24"
+                      required
                     />
                   </div>
                 )}
+
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1 ml-1">Դրես Կոդ (Dress Code)</label>
+                  <input
+                    type="text"
+                    value={eventData.dressCode}
+                    onChange={e => setEventData({...eventData, dressCode: e.target.value})}
+                    className="w-full glass-input rounded-xl px-4 py-3 text-sm"
+                    placeholder="օր. Business Casual"
+                  />
+                </div>
 
                 <div>
                   <label className="block text-xs text-gray-400 mb-1 ml-1">Նկարագրություն</label>

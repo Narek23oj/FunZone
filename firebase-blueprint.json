@@ -31,7 +31,11 @@
         "createdBy": { "type": "string", "description": "User ID of the creator" },
         "coinsAwarded": { "type": "boolean" },
         "price": { "type": "number" },
-        "registrationDeadline": { "type": "string", "format": "date-time", "description": "Deadline for event registration" }
+        "registrationDeadline": { "type": "string", "format": "date-time", "description": "Deadline for event registration" },
+        "location": { "type": "string", "description": "Physical location of the event" },
+        "isOnline": { "type": "boolean", "description": "Whether the event is online" },
+        "meetingLink": { "type": "string", "description": "Link for online meetings" },
+        "dressCode": { "type": "string", "description": "Dress code for the event" }
       },
       "required": ["title", "description", "type", "image", "date", "createdBy"]
     },

@@ -15,6 +15,10 @@ export interface Event {
   coinsAwarded?: boolean;
   price?: number;
   registrationDeadline?: string;
+  location?: string;
+  isOnline?: boolean;
+  meetingLink?: string;
+  dressCode?: string;
 }
 
 export interface Application {
