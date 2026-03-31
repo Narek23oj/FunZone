@@ -27,7 +27,7 @@ export default function AdminDashboard() {
   const { logout, user, users, addUser, updateUser: updateAuthUser, deleteUser } = useAuth();
   const { 
     events, applications, certificates, announcements, assets, transactions, certificateTemplates,
-    addEvent, deleteEvent, updateEvent, updateApplicationStatus, updateAttendance, removeApplication, issueCertificate, addAnnouncement, addAsset, addTransaction, addCertificateTemplate, deleteCertificateTemplate
+    addEvent, deleteEvent, updateEvent, updateApplicationStatus, updateAttendance, removeApplication, issueCertificate, addAnnouncement, deleteAnnouncement, addAsset, addTransaction, addCertificateTemplate, deleteCertificateTemplate
   } = useData();
   
   const [activeTab, setActiveTab] = useState<'staff' | 'users' | 'events' | 'applications' | 'department' | 'certificates' | 'coins'>('staff');
@@ -35,6 +35,8 @@ export default function AdminDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
+  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', type: 'info' as 'info' | 'warning' | 'success' });
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedAttendanceEvent, setSelectedAttendanceEvent] = useState<Event | null>(null);
   const [templateData, setTemplateData] = useState({ name: '', description: '', imageUrl: '' });
@@ -242,7 +244,7 @@ export default function AdminDashboard() {
       return;
     }
 
-    if (eventData.isOnline && eventData.type === 'Seminar') {
+    if (eventData.isOnline) {
       if (!eventData.meetingLink?.trim()) {
         toast.error('Խնդրում ենք տրամադրել հանդիպման հղումը:');
         return;
@@ -687,6 +689,164 @@ export default function AdminDashboard() {
     }
   };
 
+  const downloadApplicationsCSV = () => {
+    if (filteredApplications.length === 0) return;
+    
+    const headers = ['Անուն', 'Օգտանուն', 'Էլ. փոստ', 'Հեռախոս', 'Միջոցառում', 'Տեսակ', 'Կարգավիճակ', 'Ամսաթիվ', 'Վճարման ենթակա', 'Վճարված'];
+    const rows = filteredApplications.map(app => {
+      const appUser = users.find(u => u.id === app.userId);
+      const appEvent = events.find(e => e.id === app.eventId);
+      return [
+        appUser?.name || '',
+        appUser?.username || '',
+        appUser?.email || '',
+        appUser?.phone || '',
+        appEvent?.title || '',
+        appEvent?.type || '',
+        app.status === 'approved' ? 'Ընդունված' : app.status === 'rejected' ? 'Մերժված' : 'Սպասող',
+        new Date(app.appliedAt).toLocaleDateString('hy-AM'),
+        app.paymentRequired || 0,
+        app.paidAmount || 0
+      ];
+    });
+
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `applications_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadUsersCSV = () => {
+    if (users.length === 0) return;
+    
+    const headers = ['Անուն', 'Օգտանուն', 'Էլ. փոստ', 'Հեռախոս', 'Դեր', 'Բաժին', 'FZ Coins', 'Ստեղծվել է'];
+    const rows = users.map(u => [
+      u.name,
+      u.username,
+      u.email || '',
+      u.phone || '',
+      u.role,
+      u.department || '',
+      u.fzCoins || 0,
+      new Date(u.createdAt).toLocaleDateString('hy-AM')
+    ]);
+
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `users_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadTransactionsCSV = () => {
+    const headers = ['ID', 'User ID', 'Type', 'Amount', 'Description', 'Date'];
+    const rows = transactions.map(t => [
+      t.id,
+      t.userId,
+      t.type === 'earn' ? 'Ստացում' : 'Ծախս',
+      t.amount,
+      t.description,
+      new Date(t.date).toLocaleString('hy-AM')
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `transactions_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleAnnouncementSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await addAnnouncement({
+        ...announcementForm,
+        date: new Date().toISOString()
+      });
+      setIsAnnouncementModalOpen(false);
+      setAnnouncementForm({ title: '', content: '', type: 'info' });
+      toast.success('Հայտարարությունը հրապարակվեց:');
+    } catch (error) {
+      toast.error('Հայտարարությունը չհաջողվեց հրապարակել:');
+    }
+  };
+
+  const renderAnnouncementsTab = () => {
+    return (
+      <div className="space-y-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-3xl font-bold mb-2">Հայտարարություններ</h2>
+            <p className="text-secondary text-sm font-medium">Կառավարեք գլոբալ հայտարարությունները և ծանուցումները</p>
+          </div>
+          <button 
+            onClick={() => setIsAnnouncementModalOpen(true)}
+            className="minimal-button-primary py-2.5 px-5 flex items-center gap-2"
+          >
+            <Plus size={18} /> Ավելացնել Հայտարարություն
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {announcements.map((ann) => (
+            <div key={ann.id} className="minimal-card p-6 relative group">
+              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onClick={() => deleteAnnouncement(ann.id)}
+                  className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-colors"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  ann.type === 'warning' ? 'bg-orange-500/10 text-orange-500' :
+                  ann.type === 'success' ? 'bg-green-500/10 text-green-500' :
+                  'bg-blue-500/10 text-blue-500'
+                }`}>
+                  <Megaphone size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">{ann.title}</h3>
+                  <div className="text-[10px] text-secondary font-bold uppercase tracking-widest">
+                    {new Date(ann.date).toLocaleDateString('hy-AM')}
+                  </div>
+                </div>
+              </div>
+              <p className="text-secondary text-sm leading-relaxed">{ann.content}</p>
+            </div>
+          ))}
+          {announcements.length === 0 && (
+            <div className="col-span-full py-20 text-center glass rounded-3xl">
+              <Megaphone size={48} className="mx-auto text-secondary/20 mb-4" />
+              <p className="text-secondary italic">Հայտարարություններ չկան:</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderCertificatesTab = () => {
     return (
       <div className="space-y-8">
@@ -800,15 +960,24 @@ export default function AdminDashboard() {
             <h2 className="text-3xl font-bold mb-2">FZ Coins-ի Կառավարում</h2>
             <p className="text-secondary text-sm font-medium">Դիտեք և փոփոխեք օգտատերերի մետաղադրամների հաշվեկշիռը</p>
           </div>
-          <div className="relative w-full md:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" size={18} />
-            <input
-              type="text"
-              placeholder="Փնտրել օգտատերերին..."
-              value={coinSearchQuery}
-              onChange={(e) => setCoinSearchQuery(e.target.value)}
-              className="minimal-input pl-10"
-            />
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            <button 
+              onClick={downloadTransactionsCSV}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-border text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/10 transition-all w-full sm:w-auto justify-center"
+            >
+              <Download size={14} />
+              <span>Ներբեռնել Գործարքները</span>
+            </button>
+            <div className="relative flex-1 md:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" size={18} />
+              <input
+                type="text"
+                placeholder="Փնտրել օգտատերերին..."
+                value={coinSearchQuery}
+                onChange={(e) => setCoinSearchQuery(e.target.value)}
+                className="minimal-input pl-10"
+              />
+            </div>
           </div>
         </div>
 
@@ -1585,6 +1754,14 @@ export default function AdminDashboard() {
 
           {user?.role === 'superadmin' && (
             <button
+              onClick={() => setActiveTab('announcements')}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all text-sm font-medium ${activeTab === 'announcements' ? 'bg-primary text-bg' : 'text-secondary hover:text-primary hover:bg-white/5'}`}
+            >
+              <Megaphone size={16} /> Հայտարարություններ
+            </button>
+          )}
+          {user?.role === 'superadmin' && (
+            <button
               onClick={() => setActiveTab('certificates')}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all text-sm font-medium ${activeTab === 'certificates' ? 'bg-primary text-bg' : 'text-secondary hover:text-primary hover:bg-white/5'}`}
             >
@@ -1618,9 +1795,18 @@ export default function AdminDashboard() {
               </p>
             </div>
             
-            <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+            <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto items-center">
               {activeTab === 'users' && (
-                <div className="flex flex-wrap gap-2">
+                <button 
+                  onClick={downloadUsersCSV}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-border text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/10 transition-all w-full sm:w-auto justify-center"
+                >
+                  <Download size={14} />
+                  <span>Ներբեռնել CSV</span>
+                </button>
+              )}
+              {activeTab === 'users' && (
+                <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                   <select
                     value={userFilters.eventId}
                     onChange={(e) => setUserFilters({ ...userFilters, eventId: e.target.value })}
@@ -1818,7 +2004,12 @@ export default function AdminDashboard() {
                         <Calendar size={12} className="mr-2" />
                         {new Date(event.date).toLocaleDateString('hy-AM')}
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-secondary">
+                          <Users size={12} />
+                          {applications.filter(a => a.eventId === event.id).length}
+                        </div>
+                        <div className="flex gap-2">
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1841,7 +2032,8 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
+              </motion.div>
               ))}
             </AnimatePresence>
             
@@ -1861,9 +2053,18 @@ export default function AdminDashboard() {
               <h2 className="text-3xl font-bold mb-2">Բոլոր Հայտերը</h2>
               <p className="text-secondary text-sm font-medium">Վերանայեք և կառավարեք օգտատերերի հայտերը</p>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-border text-[10px] font-bold uppercase tracking-widest text-secondary">
-              <Users size={14} />
-              <span>Գտնվել է {filteredApplications.length} հայտ</span>
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={downloadApplicationsCSV}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-border text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/10 transition-all"
+              >
+                <Download size={14} />
+                <span>Ներբեռնել CSV</span>
+              </button>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-border text-[10px] font-bold uppercase tracking-widest text-secondary">
+                <Users size={14} />
+                <span>Գտնվել է {filteredApplications.length} հայտ</span>
+              </div>
             </div>
           </div>
 
@@ -2090,6 +2291,7 @@ export default function AdminDashboard() {
         </>
       )}
 
+      {activeTab === 'announcements' && renderAnnouncementsTab()}
       {activeTab === 'certificates' && renderCertificatesTab()}
       </div>
 
@@ -2153,15 +2355,35 @@ export default function AdminDashboard() {
           )}
 
           {user?.role === 'superadmin' && (
-            <button
-              onClick={() => setActiveTab('certificates')}
-              className={`flex flex-col items-center gap-1 p-2 min-w-[64px] transition-all ${activeTab === 'certificates' ? 'text-primary' : 'text-secondary'}`}
-            >
-              <div className={`p-2 rounded-xl transition-all ${activeTab === 'certificates' ? 'bg-primary/10' : ''}`}>
-                <Award size={20} />
-              </div>
-              <span className="text-[8px] font-bold uppercase tracking-widest">Սերտիֆիկատ</span>
-            </button>
+            <>
+              <button
+                onClick={() => setActiveTab('announcements')}
+                className={`flex flex-col items-center gap-1 p-2 min-w-[64px] transition-all ${activeTab === 'announcements' ? 'text-primary' : 'text-secondary'}`}
+              >
+                <div className={`p-2 rounded-xl transition-all ${activeTab === 'announcements' ? 'bg-primary/10' : ''}`}>
+                  <Megaphone size={20} />
+                </div>
+                <span className="text-[8px] font-bold uppercase tracking-widest">Հայտարարություն</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('certificates')}
+                className={`flex flex-col items-center gap-1 p-2 min-w-[64px] transition-all ${activeTab === 'certificates' ? 'text-primary' : 'text-secondary'}`}
+              >
+                <div className={`p-2 rounded-xl transition-all ${activeTab === 'certificates' ? 'bg-primary/10' : ''}`}>
+                  <Award size={20} />
+                </div>
+                <span className="text-[8px] font-bold uppercase tracking-widest">Սերտիֆիկատ</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('coins')}
+                className={`flex flex-col items-center gap-1 p-2 min-w-[64px] transition-all ${activeTab === 'coins' ? 'text-primary' : 'text-secondary'}`}
+              >
+                <div className={`p-2 rounded-xl transition-all ${activeTab === 'coins' ? 'bg-primary/10' : ''}`}>
+                  <span className="text-xl">🪙</span>
+                </div>
+                <span className="text-[8px] font-bold uppercase tracking-widest">Coins</span>
+              </button>
+            </>
           )}
         </div>
       </nav>
@@ -2884,6 +3106,66 @@ export default function AdminDashboard() {
         )}
       </AnimatePresence>
 
+      {/* Announcement Modal */}
+      <AnimatePresence>
+        {isAnnouncementModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAnnouncementModalOpen(false)}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md glass p-8 rounded-[2.5rem] shadow-2xl"
+            >
+              <h2 className="text-2xl font-bold text-white mb-6">Նոր Հայտարարություն</h2>
+              <form onSubmit={handleAnnouncementSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Վերնագիր</label>
+                  <input
+                    type="text"
+                    required
+                    value={announcementForm.title}
+                    onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })}
+                    className="w-full minimal-input py-3"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Տեսակ</label>
+                  <select
+                    value={announcementForm.type}
+                    onChange={(e) => setAnnouncementForm({ ...announcementForm, type: e.target.value as any })}
+                    className="w-full minimal-input py-3"
+                  >
+                    <option value="info">Տեղեկատվական</option>
+                    <option value="warning">Զգուշացում</option>
+                    <option value="success">Հաջողություն</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Բովանդակություն</label>
+                  <textarea
+                    required
+                    rows={4}
+                    value={announcementForm.content}
+                    onChange={(e) => setAnnouncementForm({ ...announcementForm, content: e.target.value })}
+                    className="w-full minimal-input py-3 resize-none"
+                  />
+                </div>
+                <button type="submit" className="w-full minimal-button-primary py-4 mt-4">
+                  Հրապարակել
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Template Modal */}
       <AnimatePresence>
         {isTemplateModalOpen && (
@@ -2964,6 +3246,69 @@ export default function AdminDashboard() {
                   className="w-full py-4 rounded-2xl bg-primary text-bg font-bold shadow-xl hover:shadow-primary/25 transition-all"
                 >
                   Պահպանել Ձևանմուշը
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+        {isAnnouncementModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+              onClick={() => setIsAnnouncementModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-md glass rounded-3xl p-8 overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/50 via-primary to-primary/50" />
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold tracking-tight text-white">Նոր Հայտարարություն</h3>
+                <button onClick={() => setIsAnnouncementModalOpen(false)} className="p-2 hover:bg-white/5 rounded-xl transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleAnnouncementSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-secondary mb-2 ml-1">Վերնագիր</label>
+                  <input
+                    type="text"
+                    required
+                    value={announcementForm.title}
+                    onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })}
+                    className="minimal-input"
+                    placeholder="Հայտարարության վերնագիրը"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-secondary mb-2 ml-1">Տեսակ</label>
+                  <select
+                    value={announcementForm.type}
+                    onChange={(e) => setAnnouncementForm({ ...announcementForm, type: e.target.value as any })}
+                    className="minimal-input"
+                  >
+                    <option value="info">Տեղեկատվական</option>
+                    <option value="warning">Զգուշացում</option>
+                    <option value="success">Հաջողություն</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-secondary mb-2 ml-1">Բովանդակություն</label>
+                  <textarea
+                    required
+                    value={announcementForm.content}
+                    onChange={(e) => setAnnouncementForm({ ...announcementForm, content: e.target.value })}
+                    className="minimal-input min-h-[120px] py-3"
+                    placeholder="Գրեք հայտարարության տեքստը..."
+                  />
+                </div>
+                <button 
+                  type="submit"
+                  className="minimal-button-primary w-full py-4 mt-4"
+                >
+                  Հրապարակել
                 </button>
               </form>
             </motion.div>

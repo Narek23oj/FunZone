@@ -289,7 +289,7 @@ export default function UserDashboard() {
                 const hasApplied = applications.some(a => a.eventId === event.id && a.userId === user?.id);
                 const deadline = event.registrationDeadline || event.date;
                 const today = new Date().toISOString().split('T')[0];
-                const isPastDeadline = today >= deadline;
+                const isPastDeadline = today > deadline;
                 const canRegister = !hasApplied && !isPastDeadline;
 
                 return (

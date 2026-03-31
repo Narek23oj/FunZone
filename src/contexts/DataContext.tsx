@@ -367,11 +367,19 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const deleteAnnouncement = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'announcements', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `announcements/${id}`);
+    }
+  };
+
   return (
     <DataContext.Provider value={{ 
       events, applications, certificates, announcements, assets, certificateTemplates, transactions,
       addEvent, deleteEvent, applyForEvent, updateApplicationStatus, updateAttendance,
-      issueCertificate, addAnnouncement, addAsset, updateEvent, removeApplication,
+      issueCertificate, addAnnouncement, deleteAnnouncement, addAsset, updateEvent, removeApplication,
       addCertificateTemplate, deleteCertificateTemplate, addTransaction
     }}>
       {children}

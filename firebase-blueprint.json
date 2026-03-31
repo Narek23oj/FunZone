@@ -14,7 +14,9 @@
         "password": { "type": "string", "description": "Base64 encoded password (legacy)" },
         "hasPassword": { "type": "boolean" },
         "image": { "type": "string" },
-        "fzCoins": { "type": "number" }
+        "fzCoins": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "id": { "type": "string" }
       },
       "required": ["username", "name", "role", "hasPassword"]
     },
@@ -50,7 +52,8 @@
         "appliedAt": { "type": "string", "format": "date-time" },
         "telegramLink": { "type": "string" },
         "attended": { "type": "boolean" },
-        "paymentRequired": { "type": "number" }
+        "paymentRequired": { "type": "number" },
+        "paidAmount": { "type": "number" }
       },
       "required": ["eventId", "userId", "status", "appliedAt"]
     },
@@ -60,13 +63,16 @@
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
+        "recipientName": { "type": "string" },
         "title": { "type": "string" },
         "issuedAt": { "type": "string", "format": "date-time" },
         "isMandatory": { "type": "boolean" },
         "type": { "type": "string" },
-        "templateData": { "type": "string" }
+        "templateData": { "type": "string" },
+        "eventId": { "type": "string" },
+        "pdfUrl": { "type": "string" }
       },
-      "required": ["userId", "title", "issuedAt"]
+      "required": ["userId", "recipientName", "title", "issuedAt"]
     },
     "Announcement": {
       "title": "Announcement",
@@ -168,6 +174,35 @@
     "/certificate_templates/{templateId}": {
       "schema": { "$ref": "#/entities/CertificateTemplate" },
       "description": "Collection of certificate templates"
+    },
+    "/public_users/{username}": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "role": { "type": "string" },
+          "hasPassword": { "type": "boolean" },
+          "email": { "type": "string" }
+        }
+      },
+      "description": "Public user info for login/registration"
+    },
+    "/public_emails/{email}": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "uid": { "type": "string" }
+        }
+      },
+      "description": "Email uniqueness check"
+    },
+    "/public_phones/{phone}": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "uid": { "type": "string" }
+        }
+      },
+      "description": "Phone uniqueness check"
     }
   }
 }

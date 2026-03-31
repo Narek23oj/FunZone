@@ -18,6 +18,7 @@ export default function Login() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [userEmail, setUserEmail] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
   
@@ -32,6 +33,7 @@ export default function Login() {
     setPhone('');
     setPassword('');
     setConfirmPassword('');
+    setUserEmail(undefined);
     setIsRegistered(false);
   }, [isAdminMode]);
 
@@ -54,6 +56,8 @@ export default function Login() {
         return;
       }
       
+      setUserEmail((result as any).email);
+
       if (!result.hasPassword) {
         setStep('create_password');
         toast.info('Առաջին մուտք: Խնդրում ենք ստեղծել գաղտնաբառ:');
@@ -73,7 +77,7 @@ export default function Login() {
 
     setLoading(true);
     try {
-      await login(username, password);
+      await login(username, password, userEmail);
       toast.success(`Բարի գալուստ, ${username}!`);
       navigate(isAdminMode ? '/admin' : '/user');
     } catch (error: any) {
@@ -96,7 +100,7 @@ export default function Login() {
 
     setLoading(true);
     try {
-      await createPassword(username, password);
+      await createPassword(username, password, userEmail);
       toast.success('Գաղտնաբառը հաջողությամբ ստեղծվեց: Բարի գալուստ FunZone:');
       navigate(isAdminMode ? '/admin' : '/user');
     } catch (error: any) {

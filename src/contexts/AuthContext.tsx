@@ -26,14 +26,19 @@ import { toast } from 'sonner';
 import firebaseConfigJson from '../../firebase-applet-config.json';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfigJson.apiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigJson.authDomain,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfigJson.projectId,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigJson.storageBucket,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigJson.messagingSenderId,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfigJson.appId,
-  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || firebaseConfigJson.firestoreDatabaseId,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || (firebaseConfigJson as any).apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || (firebaseConfigJson as any).authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || (firebaseConfigJson as any).projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || (firebaseConfigJson as any).storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || (firebaseConfigJson as any).messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || (firebaseConfigJson as any).appId,
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || (firebaseConfigJson as any).firestoreDatabaseId,
 };
+
+// Safety check to prevent crash if config is missing
+if (!firebaseConfig.apiKey) {
+  console.error("Firebase API Key is missing in AuthContext. Please check your environment variables.");
+}
 
 // Initialize a secondary app for creating users without signing out the current admin
 const secondaryApp = getApps().length > 1 
@@ -60,9 +65,9 @@ interface AuthContextType {
   user: User | null;
   users: User[];
   checkUsername: (username: string, isAdminMode: boolean) => Promise<{ exists: boolean; hasPassword?: boolean; wrongPortal?: boolean; role?: string }>;
-  login: (username: string, pass: string) => Promise<void>;
+  login: (username: string, pass: string, email?: string) => Promise<void>;
   register: (data: { username: string; name: string; email: string; phone: string; password: string }) => Promise<void>;
-  createPassword: (username: string, pass: string) => Promise<void>;
+  createPassword: (username: string, pass: string, email?: string) => Promise<void>;
   logout: () => void;
   addUser: (user: Omit<User, 'id'> & { password?: string }) => Promise<void>;
   updateUser: (userId: string, updates: Partial<User>) => Promise<void>;
@@ -205,23 +210,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const login = async (username: string, pass: string) => {
+  const getEmailForUser = async (normalizedUsername: string) => {
+    // Try to get email from public_users first
+    const publicUserDoc = await getDoc(doc(db, 'public_users', normalizedUsername));
+    if (publicUserDoc.exists() && publicUserDoc.data().email) {
+      return publicUserDoc.data().email;
+    }
+    
+    // Fallbacks for super admins
+    if (normalizedUsername === 'funzone') return 'narekexiazaryan95@gmail.com';
+    if (normalizedUsername === 'narek') return 'narek@funzone.am';
+    
+    // General fallback
+    return `${normalizedUsername.replace(/\s/g, '')}@funzone.am`;
+  };
+
+  const login = async (username: string, pass: string, providedEmail?: string) => {
     try {
       const normalizedUsername = username.trim().toLowerCase();
-      let email: string;
+      let email = providedEmail;
       
-      // Try to get email from public_users first
-      const publicUserDoc = await getDoc(doc(db, 'public_users', normalizedUsername));
-      if (publicUserDoc.exists() && publicUserDoc.data().email) {
-        email = publicUserDoc.data().email;
-      } else if (normalizedUsername === 'funzone') {
-        email = 'narekexiazaryan95@gmail.com';
-      } else if (normalizedUsername === 'narek') {
-        email = 'narek@funzone.am';
-      } else {
-        email = `${normalizedUsername.replace(/\s/g, '')}@funzone.am`;
+      if (!email) {
+        email = await getEmailForUser(normalizedUsername);
       }
       
+      console.log(`Attempting login for user: ${normalizedUsername} with email: ${email}`);
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
       
       // Manually fetch and set user to avoid race condition with onAuthStateChanged
@@ -230,8 +243,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setCurrentUser({ id: userDoc.id, ...userDoc.data() } as User);
       }
     } catch (error: any) {
-      if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        throw new Error('Սխալ գաղտնաբառ: Խնդրում ենք փորձել նորից:');
+      console.error("Login error:", error.code, error.message);
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-email') {
+        throw new Error('Սխալ գաղտնաբառ կամ օգտանուն: Խնդրում ենք փորձել նորից:');
+      }
+      if (error.code === 'auth/too-many-requests') {
+        throw new Error('Չափազանց շատ փորձեր: Խնդրում ենք փորձել մի փոքր ուշ:');
       }
       throw new Error('Մուտքը ձախողվեց: Խնդրում ենք փորձել մի փոքր ուշ:');
     }
@@ -307,23 +324,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const createPassword = async (username: string, pass: string) => {
+  const createPassword = async (username: string, pass: string, providedEmail?: string) => {
     try {
       const normalizedUsername = username.trim().toLowerCase();
-      let email: string;
+      let email = providedEmail;
       
-      // Try to get email from public_users first
-      const publicUserDoc = await getDoc(doc(db, 'public_users', normalizedUsername));
-      if (publicUserDoc.exists() && publicUserDoc.data().email) {
-        email = publicUserDoc.data().email;
-      } else if (normalizedUsername === 'funzone') {
-        email = 'narekexiazaryan95@gmail.com';
-      } else if (normalizedUsername === 'narek') {
-        email = 'narek@funzone.am';
-      } else {
-        email = `${normalizedUsername.replace(/\s/g, '')}@funzone.am`;
+      if (!email) {
+        email = await getEmailForUser(normalizedUsername);
       }
       
+      console.log(`Attempting to create password for user: ${normalizedUsername} with email: ${email}`);
       let userCredential;
       try {
         // Try to create the auth account
