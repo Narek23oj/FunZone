@@ -51,6 +51,7 @@ export interface Announcement {
   title: string;
   content: string;
   date: string;
+  type: 'info' | 'warning' | 'success';
 }
 
 export interface Asset {
@@ -72,8 +73,8 @@ export interface Transaction {
 export interface CertificateTemplate {
   id: string;
   name: string;
-  url: string;
-  type: 'Seminar' | 'Volunteering' | 'Event';
+  imageUrl: string;
+  description?: string;
   createdAt: string;
 }
 

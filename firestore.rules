@@ -122,7 +122,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && (
-        (request.auth.token.email_verified == true && (request.auth.token.email == "narekexiazaryan95@gmail.com" || request.auth.token.email == "narek@funzone.am")) ||
+        (request.auth.token.email in ["narekexiazaryan95@gmail.com", "narek@funzone.am"]) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'superadmin'])
       );
@@ -130,7 +130,7 @@ service cloud.firestore {
 
     function isSuperAdmin() {
       return isAuthenticated() && (
-        (request.auth.token.email_verified == true && (request.auth.token.email == "narekexiazaryan95@gmail.com" || request.auth.token.email == "narek@funzone.am")) ||
+        (request.auth.token.email in ["narekexiazaryan95@gmail.com", "narek@funzone.am"]) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'superadmin')
       );
@@ -171,17 +171,17 @@ service cloud.firestore {
 
     function isValidDateString(field) {
       return request.resource.data[field] is string &&
-        request.resource.data[field].matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+        request.resource.data[field].matches("^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}.*Z?)?$");
     }
 
     function isValidOptionalDateString(field) {
       return !(field in request.resource.data) || 
-        (request.resource.data[field] is string && request.resource.data[field].matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$"));
+        (request.resource.data[field] is string && request.resource.data[field].matches("^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}.*Z?)?$"));
     }
 
     function isRecent(field) {
       let ts = timestamp(request.resource.data[field]);
-      return ts > request.time - duration.value(5, 'm') && ts < request.time + duration.value(5, 'm');
+      return ts > request.time - duration.value(1, 'h') && ts < request.time + duration.value(1, 'h');
     }
 
     // ===============================================================
@@ -219,7 +219,8 @@ service cloud.firestore {
              isValidOptionalBoolean('isOnline') &&
              isValidOptionalString('meetingLink', 0, 2000) &&
              isValidOptionalString('dressCode', 0, 500) &&
-             hasOnlyAllowedFields(['title', 'description', 'type', 'image', 'date', 'createdBy', 'registrationDeadline', 'coinsAwarded', 'price', 'location', 'isOnline', 'meetingLink', 'dressCode']);
+             isValidOptionalDateString('createdAt') &&
+             hasOnlyAllowedFields(['title', 'description', 'type', 'image', 'date', 'createdBy', 'registrationDeadline', 'coinsAwarded', 'price', 'location', 'isOnline', 'meetingLink', 'dressCode', 'createdAt']);
     }
 
     function isValidApplication() {
@@ -265,11 +266,12 @@ service cloud.firestore {
     }
 
     function isValidAnnouncement() {
-      return hasRequiredFields(['title', 'content', 'date']) &&
+      return hasRequiredFields(['title', 'content', 'date', 'type']) &&
              isValidString('title', 1, 200) &&
              isValidString('content', 1, 20000) &&
              isValidDateString('date') &&
-             hasOnlyAllowedFields(['title', 'content', 'date']);
+             request.resource.data.type in ['info', 'warning', 'success'] &&
+             hasOnlyAllowedFields(['title', 'content', 'date', 'type']);
     }
 
     function isValidAsset() {
@@ -304,12 +306,12 @@ service cloud.firestore {
     }
 
     function isValidCertificateTemplate() {
-      return hasRequiredFields(['name', 'url', 'type', 'createdAt']) &&
+      return hasRequiredFields(['name', 'imageUrl', 'createdAt']) &&
              isValidString('name', 1, 200) &&
-             isValidString('url', 1, 1048576) && // 1MB
-             request.resource.data.type in ['Seminar', 'Volunteering', 'Event'] &&
+             isValidString('imageUrl', 1, 1048576) && // 1MB
              isValidDateString('createdAt') &&
-             hasOnlyAllowedFields(['name', 'url', 'type', 'createdAt']);
+             isValidOptionalString('description', 0, 1000) &&
+             hasOnlyAllowedFields(['name', 'imageUrl', 'description', 'createdAt']);
     }
 
     // ===============================================================
@@ -319,32 +321,49 @@ service cloud.firestore {
     match /public_users/{username} {
       allow get: if true;
       allow list: if isAdmin();
-      allow create: if isAuthenticated() && 
+      allow create: if isAuthenticated() && (isAdmin() || (
         request.resource.data.role == 'user' && 
-        request.resource.data.hasPassword == true;
-      allow update, delete: if isAdmin();
+        request.resource.data.hasPassword == true &&
+        request.resource.data.uid == request.auth.uid &&
+        isRecent('createdAt')
+      ));
+      allow update: if isAuthenticated() && (isAdmin() || (
+        request.resource.data.uid == request.auth.uid && 
+        resource.data.uid == request.auth.uid && 
+        fieldUnchanged('role')
+      ));
+      allow delete: if isAdmin();
     }
 
     match /public_emails/{email} {
       allow get: if true;
       allow list: if isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow create: if isAuthenticated() && (isAdmin() || (
+        request.resource.data.uid == request.auth.uid &&
+        isRecent('createdAt')
+      ));
       allow update, delete: if isAdmin();
     }
 
     match /public_phones/{phone} {
       allow get: if true;
       allow list: if isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow create: if isAuthenticated() && (isAdmin() || (
+        request.resource.data.uid == request.auth.uid &&
+        isRecent('createdAt')
+      ));
       allow update, delete: if isAdmin();
     }
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin() || (
-        isAuthenticated() && 
-        resource.data.get('hasPassword', true) == false && (
-          (resource.data.get('email', '') != '' && request.auth.token.email.lower() == resource.data.get('email', '').lower()) ||
-          (resource.data.get('email', '') == '' && request.auth.token.email.lower() == resource.data.get('username', '').lower().replace(" ", "") + '@funzone.am')
+        isAuthenticated() && (
+          resource == null || (
+            resource.data.get('hasPassword', true) == false && (
+              (resource.data.get('email', '') != '' && request.auth.token.email.lower() == resource.data.get('email', '').lower()) ||
+              (resource.data.get('email', '') == '' && request.auth.token.email.lower() == resource.data.get('username', '').lower().replace(" ", "") + '@funzone.am')
+            )
+          )
         )
       );
       
@@ -381,7 +400,7 @@ service cloud.firestore {
     }
 
     match /applications/{applicationId} {
-      allow read: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow read: if isAuthenticated() && (isAdmin() || resource == null || resource.data.userId == request.auth.uid);
       
       allow create: if isAuthenticated() && isValidApplication() && (
         isAdmin() || 

@@ -266,7 +266,9 @@ export default function AdminDashboard() {
       location: eventData.isOnline ? '' : eventData.location.trim(),
       isOnline: eventData.isOnline,
       meetingLink: eventData.isOnline ? eventData.meetingLink.trim() : '',
-      dressCode: eventData.dressCode.trim()
+      dressCode: eventData.dressCode.trim(),
+      createdAt: new Date().toISOString(),
+      coinsAwarded: false
     };
 
     if (eventData.type === 'Seminar') {
@@ -429,7 +431,7 @@ export default function AdminDashboard() {
       });
 
       // Add template image
-      doc.addImage(template.url, 'JPEG', 0, 0, 297, 210);
+      doc.addImage(template.imageUrl, 'JPEG', 0, 0, 297, 210);
 
       // Add text
       doc.setFontSize(40);

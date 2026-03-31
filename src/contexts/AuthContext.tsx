@@ -307,12 +307,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // 5. Create user documents
       await setDoc(doc(db, 'users', uid), userData);
       await setDoc(doc(db, 'public_users', normalizedUsername), {
+        uid,
         role: 'user',
         hasPassword: true,
-        email: normalizedEmail
+        email: normalizedEmail,
+        createdAt: userData.createdAt
       });
-      await setDoc(doc(db, 'public_emails', normalizedEmail), { uid });
-      await setDoc(doc(db, 'public_phones', normalizedPhone), { uid });
+      await setDoc(doc(db, 'public_emails', normalizedEmail), { uid, createdAt: userData.createdAt });
+      await setDoc(doc(db, 'public_phones', normalizedPhone), { uid, createdAt: userData.createdAt });
 
       setCurrentUser(userData);
     } catch (error: any) {
@@ -376,9 +378,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         };
         await setDoc(doc(db, 'users', newUid), finalUserData);
         await setDoc(doc(db, 'public_users', normalizedUsername), {
+          uid: newUid,
           role: 'superadmin',
           hasPassword: true,
-          email: normalizedUsername === 'funzone' ? 'narekexiazaryan95@gmail.com' : 'narek@funzone.am'
+          email: normalizedUsername === 'funzone' ? 'narekexiazaryan95@gmail.com' : 'narek@funzone.am',
+          createdAt: finalUserData.createdAt
         });
         setCurrentUser(finalUserData);
         return;
@@ -414,6 +418,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       // Update public_users
       await updateDoc(doc(db, 'public_users', normalizedUsername), { 
+        uid: newUid,
         hasPassword: true,
         email: email
       });
@@ -483,15 +488,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       // 5. Create public_users entry
       await setDoc(doc(db, 'public_users', normalizedUsername), {
+        uid,
         role: newUser.role,
         hasPassword: !!newUser.password,
-        email: normalizedEmail
+        email: normalizedEmail,
+        createdAt: userToSave.createdAt
       });
 
       // 6. Create uniqueness entries
-      await setDoc(doc(db, 'public_emails', normalizedEmail), { uid });
+      await setDoc(doc(db, 'public_emails', normalizedEmail), { uid, createdAt: userToSave.createdAt });
       if (newUser.phone) {
-        await setDoc(doc(db, 'public_phones', newUser.phone.trim()), { uid });
+        await setDoc(doc(db, 'public_phones', newUser.phone.trim()), { uid, createdAt: userToSave.createdAt });
       }
     } catch (error: any) {
       if (error.code === 'permission-denied') {
